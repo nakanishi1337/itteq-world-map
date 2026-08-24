@@ -18,10 +18,15 @@ export default function App() {
   const [selectedPerformer, setSelectedPerformer] = useState("");
   const [showUnvisited, setShowUnvisited] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<VisitedCountry | null>(null);
-  const performers = useMemo(
-    () => [...new Set(episodes.flatMap((episode) => episode.performers))].sort((a, b) => a.localeCompare(b, "ja")),
-    [],
-  );
+  const performers = useMemo(() => {
+    const appearanceCounts = new Map<string, number>();
+    episodes.forEach((episode) => episode.performers.forEach((performer) => {
+      appearanceCounts.set(performer, (appearanceCounts.get(performer) ?? 0) + 1);
+    }));
+    return [...appearanceCounts.keys()].sort((a, b) =>
+      (appearanceCounts.get(b) ?? 0) - (appearanceCounts.get(a) ?? 0) || a.localeCompare(b, "ja"),
+    );
+  }, []);
   const filteredEpisodes = useMemo(
     () => selectedPerformer ? episodes.filter((episode) => episode.performers.includes(selectedPerformer)) : episodes,
     [selectedPerformer],
