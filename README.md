@@ -4,6 +4,10 @@
 
 現在はMVPとして、Wikipediaの放送リストから取得した訪問国を表示しています。データは確認できた範囲で段階的に補正・追加する方針です。
 
+## 公開サイト
+
+https://itteq-world-map.nakanishi1337.workers.dev/
+
 ## 開発
 
 Node.js 20以上を推奨します。
@@ -27,7 +31,7 @@ python3 scripts/collect-data.py
 
 取得元の記載内容や表記揺れを含むため、実際の訪問履歴の完全性・正確性を保証するものではありません。
 
-## Cloudflare Pages
+## Cloudflare Workers
 
 - Build command: `npm run build`
 - Build output directory: `dist`
