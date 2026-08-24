@@ -55,7 +55,7 @@ export default function App() {
           </div>
         </div>
         <WorldMapView countries={countries} showUnvisited={showUnvisited} onSelect={setSelectedCountry} />
-        <div className="map-footer"><p className={`legend ${showUnvisited ? "is-unvisited" : ""}`}><span aria-hidden="true" />色付き：{showUnvisited ? "未訪問" : "訪問済み"}</p><p className="hint">クリックで訪問状況を確認。ピンチ・ホイールで拡大縮小、ドラッグで移動できます</p></div>
+        <div className="map-footer"><p className={`legend ${showUnvisited ? "is-unvisited" : ""}`}><span aria-hidden="true" />色付き：{showUnvisited ? "未訪問" : "訪問済み"}</p><p className="hint"><span className="desktop-hint">地図上の国をクリックすると、訪問状況を確認できます</span><span className="mobile-hint">地図上の国をタップすると、訪問状況を確認できます</span></p></div>
       </section>
       <aside className={`selection ${selectedCountry ? "is-visible" : ""}`} aria-live="polite">
         {selectedCountry ? <><p>選択した国</p><strong>{selectedCountry.countryName}</strong><span>{selectedCountry.visits > 0 ? `訪問件数 ${selectedCountry.visits}件` : selectedPerformer ? "該当する訪問記録なし" : "未訪問"}</span></> : <p>{selectedPerformer ? `${selectedPerformer}の訪問国を表示しています。地図から国を選んでください。` : "地図から国を選ぶと、ここに表示されます。"}</p>}
