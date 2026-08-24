@@ -23,7 +23,7 @@ h2 { margin: 0; font-size: clamp(1.25rem,2.2vw,1.7rem); letter-spacing: -.03em; 
 .counter span { font-weight: 700; }
 .world-map { position: relative; display: flex; justify-content: center; width: 100%; margin: 4px 0 16px; overflow: hidden; border-radius: 16px; }
 .world-map svg { display: block; width: 100%; height: auto; margin: 0 auto; outline: none; touch-action: pan-y; }
-.world-map svg.is-zoomed { cursor: grab; }
+.world-map svg.is-zoomed { cursor: grab; touch-action: none; }
 .world-map svg.is-zoomed:active { cursor: grabbing; }
 .map-zoom-layer { transition: transform 120ms ease-out; }
 .map-zoom-controls { position: absolute; z-index: 2; top: 12px; right: 12px; display: flex; gap: 5px; padding: 5px; background: rgba(255,253,247,.9); border: 1px solid rgba(23,44,43,.14); border-radius: 10px; box-shadow: 0 4px 16px rgba(23,44,43,.1); }
@@ -33,12 +33,14 @@ h2 { margin: 0; font-size: clamp(1.25rem,2.2vw,1.7rem); letter-spacing: -.03em; 
 .map-zoom-controls .map-zoom-reset svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .map-ocean { fill: #edf3ef; }
 .map-country { fill: #cbd8d2; stroke: #5f706d; stroke-width: .8; stroke-linejoin: round; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill 160ms ease, filter 160ms ease; }
+.map-country:focus { outline: none; }
+.map-country:focus-visible { outline: none; stroke: #172c2b; stroke-width: 2; }
 .map-country:hover { fill: #b2c4bc; filter: brightness(1.04); }
 .map-country.is-visited { fill: #ff5a36; cursor: pointer; }
 .map-country.is-unvisited-highlighted { fill: #168d82; }
 .map-country.is-unvisited-highlighted:hover { fill: #08746b; }
 .map-country.is-visited:hover { fill: #df3f20; filter: brightness(1.04); }
-.map-country.is-visited:focus-visible { outline: none; fill: #df3f20; stroke: #172c2b; stroke-width: 2; }
+.map-country.is-visited:focus-visible { fill: #df3f20; }
 .map-footer { display: flex; justify-content: space-between; align-items: center; gap: 16px; color: #71807e; font-size: .78rem; }
 .legend { display: flex; align-items: center; gap: 9px; margin: 0; font-size: .92rem; font-weight: 600; white-space: nowrap; }
 .legend span { width: 17px; height: 17px; background: #ff5a36; border-radius: 4px; }
@@ -66,5 +68,5 @@ footer p { font-size: .85rem; font-weight: 600; }
 footer small { flex: 0 0 auto; font-size: .68rem; line-height: 1.7; text-align: right; white-space: nowrap; }
 footer a { color: inherit; text-underline-offset: 3px; }
 @media (max-width: 1000px) { .intro { white-space: normal; } }
-@media (max-width: 700px) { main { width: min(100% - 24px,1280px); padding-top: 36px; } .hero { display: block; margin-bottom: 28px; } .hero .eyebrow { margin-bottom: 10px; } .intro { margin-top: 18px; } .mobile-break { display: block; } .map-card { border-radius: 20px; } .map-heading { align-items: flex-start; } .map-actions { align-items: flex-end; flex-direction: column-reverse; gap: 16px; } .performer-filter select { min-width: 160px; max-width: 46vw; } .world-map { margin-top: 10px; } .map-footer,footer { align-items: flex-start; flex-direction: column; } .hint,footer small { text-align: left; } footer small { white-space: normal; } .selection { align-items: flex-start; flex-wrap: wrap; padding: 18px; } .selection span { width: 100%; margin-left: 0; } .broadcast-list li { grid-template-columns: 1fr; gap: 3px; } }
+@media (max-width: 700px) { main { width: min(100% - 24px,1280px); padding-top: 36px; } .hero { display: block; margin-bottom: 28px; } .hero .eyebrow { margin-bottom: 10px; } h1 { font-size: 2.15rem; } .intro { margin-top: 18px; } .mobile-break { display: block; } .map-card { border-radius: 20px; } .map-heading { align-items: flex-start; } #map-title { font-size: 1.12rem; } .map-actions { align-items: flex-end; flex-direction: column-reverse; gap: 16px; } .performer-filter select { min-width: 160px; max-width: 46vw; } .world-map { margin-top: 10px; } .map-footer,footer { align-items: flex-start; flex-direction: column; } .hint,footer small { text-align: left; } footer small { white-space: normal; } .selection { align-items: flex-start; flex-wrap: wrap; padding: 18px; } .selection span { width: 100%; margin-left: 0; } .broadcast-list li { grid-template-columns: 1fr; gap: 3px; } }
 @media (prefers-reduced-motion: reduce) { *,*::before,*::after { scroll-behavior: auto !important; transition: none !important; } }

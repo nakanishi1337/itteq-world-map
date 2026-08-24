@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type PointerEvent, type TouchEvent, type WheelEvent } from "react";
+import { useMemo, useRef, useState, type PointerEvent, type TouchEvent } from "react";
 import { geoMercator, geoPath } from "d3-geo";
 import isoCountries from "i18n-iso-countries";
 import jaLocale from "i18n-iso-countries/langs/ja.json";
@@ -29,6 +29,7 @@ const clampView = (zoom: number, x: number, y: number) => {
 export default function WorldMapView({ countries, showUnvisited, onSelect }: Props) {
   const [view, setView] = useState({ zoom: 1, x: 0, y: 0 });
   const pinchStart = useRef<{ distance: number; zoom: number; x: number; y: number; centerX: number; centerY: number } | null>(null);
+  const touchDragStart = useRef<{ clientX: number; clientY: number; x: number; y: number; moved: boolean } | null>(null);
   const dragStart = useRef<{ clientX: number; clientY: number; x: number; y: number; moved: boolean; pointerId: number } | null>(null);
   const suppressClick = useRef(false);
   const visitedByCode = useMemo(
@@ -66,22 +67,45 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   };
   const handleTouchStart = (event: TouchEvent<SVGSVGElement>) => {
     if (event.touches.length === 2) {
+      touchDragStart.current = null;
       const center = touchCenter(event);
       pinchStart.current = { distance: touchDistance(event), ...view, centerX: center.x, centerY: center.y };
+    } else if (event.touches.length === 1 && view.zoom > 1) {
+      const touch = event.touches[0];
+      touchDragStart.current = { clientX: touch.clientX, clientY: touch.clientY, x: view.x, y: view.y, moved: false };
     }
   };
   const handleTouchMove = (event: TouchEvent<SVGSVGElement>) => {
-    if (event.touches.length !== 2 || !pinchStart.current) return;
+    if (event.touches.length === 2 && pinchStart.current) {
+      event.preventDefault();
+      const start = pinchStart.current;
+      const center = touchCenter(event);
+      const nextZoom = Math.min(4, Math.max(1, start.zoom * touchDistance(event) / start.distance));
+      const ratio = nextZoom / start.zoom;
+      setView(clampView(
+        nextZoom,
+        start.x + (center.x - start.centerX) + (1 - ratio) * (start.centerX - WIDTH / 2 - start.x),
+        start.y + (center.y - start.centerY) + (1 - ratio) * (start.centerY - HEIGHT / 2 - start.y),
+      ));
+      return;
+    }
+    if (event.touches.length !== 1 || !touchDragStart.current) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    const touch = event.touches[0];
+    const dx = (touch.clientX - touchDragStart.current.clientX) * WIDTH / rect.width;
+    const dy = (touch.clientY - touchDragStart.current.clientY) * HEIGHT / rect.height;
+    if (!touchDragStart.current.moved && Math.abs(dx) + Math.abs(dy) > 6) touchDragStart.current.moved = true;
+    if (!touchDragStart.current.moved) return;
     event.preventDefault();
-    const start = pinchStart.current;
-    const center = touchCenter(event);
-    const nextZoom = Math.min(4, Math.max(1, start.zoom * touchDistance(event) / start.distance));
-    const ratio = nextZoom / start.zoom;
-    setView(clampView(
-      nextZoom,
-      start.x + (center.x - start.centerX) + (1 - ratio) * (start.centerX - WIDTH / 2 - start.x),
-      start.y + (center.y - start.centerY) + (1 - ratio) * (start.centerY - HEIGHT / 2 - start.y),
-    ));
+    setView((current) => clampView(current.zoom, touchDragStart.current!.x + dx, touchDragStart.current!.y + dy));
+  };
+  const handleTouchEnd = () => {
+    if (touchDragStart.current?.moved) {
+      suppressClick.current = true;
+      requestAnimationFrame(() => { suppressClick.current = false; });
+    }
+    pinchStart.current = null;
+    touchDragStart.current = null;
   };
   const zoomAt = (nextZoom: number, pointX = WIDTH / 2, pointY = HEIGHT / 2) => {
     setView((current) => {
@@ -90,13 +114,6 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
       const ratio = zoom / current.zoom;
       return clampView(zoom, current.x + (1 - ratio) * (pointX - WIDTH / 2 - current.x), current.y + (1 - ratio) * (pointY - HEIGHT / 2 - current.y));
     });
-  };
-  const handleWheel = (event: WheelEvent<SVGSVGElement>) => {
-    event.preventDefault();
-    const rect = event.currentTarget.getBoundingClientRect();
-    const pointX = (event.clientX - rect.left) * WIDTH / rect.width;
-    const pointY = (event.clientY - rect.top) * HEIGHT / rect.height;
-    zoomAt(view.zoom * Math.exp(-event.deltaY * .002), pointX, pointY);
   };
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.pointerType !== "mouse" || view.zoom === 1) return;
@@ -131,7 +148,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5" /></svg>
         </button>
       </div>
-      <svg className={view.zoom > 1 ? "is-zoomed" : ""} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="日本を中心にしたイッテQ訪問国マップ" onWheel={handleWheel} onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={() => { pinchStart.current = null; }}>
+      <svg className={view.zoom > 1 ? "is-zoomed" : ""} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="日本を中心にしたイッテQ訪問国マップ" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
         <rect className="map-ocean" width={WIDTH} height={HEIGHT} rx="16" />
         <g transform={`translate(${view.x} ${view.y}) translate(${WIDTH / 2} ${HEIGHT / 2}) scale(${view.zoom}) translate(${-WIDTH / 2} ${-HEIGHT / 2})`} className="map-zoom-layer">
           {map.map(({ country, path }) => {
