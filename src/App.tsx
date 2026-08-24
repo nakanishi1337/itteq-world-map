@@ -36,7 +36,7 @@ export default function App() {
     : "放送日不明";
   return (
     <main>
-      <header className="hero"><p className="eyebrow">世界の果てまで、ひと目で。</p><h1>イッテQ<br className="mobile-break" />訪問国マップ</h1><p className="intro">「謎とき冒険バラエティー 世界の果てまでイッテQ!」で訪れた国を、世界地図で一覧できます。</p></header>
+      <header className="hero"><p className="eyebrow">世界の果てまで、ひと目で。</p><h1>イッテQ 世界地図</h1><p className="intro">「謎とき冒険バラエティー 世界の果てまでイッテQ!」で訪れた国を、世界地図で一覧できます。</p></header>
       <section className="map-card" aria-labelledby="map-title">
         <div className="map-heading">
           <div><p className="section-label">WORLD MAP</p><h2 id="map-title">これまでに訪れた国</h2></div>

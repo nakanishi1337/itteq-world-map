@@ -90,14 +90,15 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
       return;
     }
     if (event.touches.length !== 1 || !touchDragStart.current) return;
+    const start = touchDragStart.current;
     const rect = event.currentTarget.getBoundingClientRect();
     const touch = event.touches[0];
-    const dx = (touch.clientX - touchDragStart.current.clientX) * WIDTH / rect.width;
-    const dy = (touch.clientY - touchDragStart.current.clientY) * HEIGHT / rect.height;
-    if (!touchDragStart.current.moved && Math.abs(dx) + Math.abs(dy) > 6) touchDragStart.current.moved = true;
-    if (!touchDragStart.current.moved) return;
+    const dx = (touch.clientX - start.clientX) * WIDTH / rect.width;
+    const dy = (touch.clientY - start.clientY) * HEIGHT / rect.height;
+    if (!start.moved && Math.abs(dx) + Math.abs(dy) > 6) start.moved = true;
+    if (!start.moved) return;
     event.preventDefault();
-    setView((current) => clampView(current.zoom, touchDragStart.current!.x + dx, touchDragStart.current!.y + dy));
+    setView((current) => clampView(current.zoom, start.x + dx, start.y + dy));
   };
   const handleTouchEnd = () => {
     if (touchDragStart.current?.moved) {
@@ -121,15 +122,16 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   };
   const handlePointerMove = (event: PointerEvent<SVGSVGElement>) => {
     if (!dragStart.current || event.pointerType !== "mouse") return;
+    const start = dragStart.current;
     const rect = event.currentTarget.getBoundingClientRect();
-    const dx = (event.clientX - dragStart.current.clientX) * WIDTH / rect.width;
-    const dy = (event.clientY - dragStart.current.clientY) * HEIGHT / rect.height;
-    if (!dragStart.current.moved && Math.abs(dx) + Math.abs(dy) > 6) {
-      dragStart.current.moved = true;
-      event.currentTarget.setPointerCapture(dragStart.current.pointerId);
+    const dx = (event.clientX - start.clientX) * WIDTH / rect.width;
+    const dy = (event.clientY - start.clientY) * HEIGHT / rect.height;
+    if (!start.moved && Math.abs(dx) + Math.abs(dy) > 6) {
+      start.moved = true;
+      event.currentTarget.setPointerCapture(start.pointerId);
     }
-    if (!dragStart.current.moved) return;
-    setView((current) => clampView(current.zoom, dragStart.current!.x + dx, dragStart.current!.y + dy));
+    if (!start.moved) return;
+    setView((current) => clampView(current.zoom, start.x + dx, start.y + dy));
   };
   const handlePointerUp = () => {
     if (dragStart.current?.moved) {
@@ -148,7 +150,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5" /></svg>
         </button>
       </div>
-      <svg className={view.zoom > 1 ? "is-zoomed" : ""} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="日本を中心にしたイッテQ訪問国マップ" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
+      <svg className={view.zoom > 1 ? "is-zoomed" : ""} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="日本を中心にしたイッテQ世界地図" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
         <rect className="map-ocean" width={WIDTH} height={HEIGHT} rx="16" />
         <g transform={`translate(${view.x} ${view.y}) translate(${WIDTH / 2} ${HEIGHT / 2}) scale(${view.zoom}) translate(${-WIDTH / 2} ${-HEIGHT / 2})`} className="map-zoom-layer">
           {map.map(({ country, path }) => {
