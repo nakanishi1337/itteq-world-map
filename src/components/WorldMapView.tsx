@@ -13,7 +13,7 @@ type Props = { countries: VisitedCountry[]; showUnvisited: boolean; onSelect: (c
 const WIDTH = 1200;
 const MAP_HEIGHT = 590;
 const HEIGHT = 680;
-const MAX_ZOOM = 8;
+const MAX_ZOOM = 16;
 isoCountries.registerLocale(jaLocale);
 type CountryProperties = GeoJsonProperties & { name?: string };
 type CountryFeature = Feature<Geometry, CountryProperties> & { id?: string | number };
@@ -59,7 +59,12 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
     projection.scale(projection.scale() * 1.06).translate([translateX, translateY + 20]);
     const path = geoPath(projection);
     // 投影倍率には含めないが、南極自体は画面下端に入る部分だけ描画する。
-    return collection.features.map((country) => ({ country: country as CountryFeature, path: path(country) ?? "" }));
+    return collection.features.map((country) => {
+      const bounds = path.bounds(country);
+      const width = bounds[1][0] - bounds[0][0];
+      const height = bounds[1][1] - bounds[0][1];
+      return { country: country as CountryFeature, path: path(country) ?? "", hasLargeHitArea: width < 12 || height < 12 };
+    });
   }, []);
 
   const countryCode = (country: CountryFeature) => isoCountries.numericToAlpha2(String(country.id).padStart(3, "0"));
@@ -162,24 +167,28 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
       <svg className={view.zoom > 1 ? "is-zoomed" : ""} viewBox={`0 0 ${WIDTH} ${HEIGHT}`} role="img" aria-label="日本を中心にしたイッテQ世界地図" onPointerDown={handlePointerDown} onPointerMove={handlePointerMove} onPointerUp={handlePointerUp} onPointerCancel={handlePointerUp} onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchEnd}>
         <rect className="map-ocean" width={WIDTH} height={HEIGHT} rx="16" />
         <g transform={`translate(${view.x} ${view.y}) translate(${WIDTH / 2} ${HEIGHT / 2}) scale(${view.zoom}) translate(${-WIDTH / 2} ${-HEIGHT / 2})`} className="map-zoom-layer">
-          {map.map(({ country, path }) => {
+          {map.map(({ country, path, hasLargeHitArea }) => {
             const code = countryCode(country);
             const visited = code ? visitedByCode.get(code) : undefined;
             const name = visited?.countryName ?? (code ? isoCountries.getName(code, "ja") : undefined) ?? country.properties?.name ?? "国名不明";
             const selectedCountry: VisitedCountry = visited ?? { countryCode: code ?? String(country.id), countryName: name, visits: 0 };
+            const selectCountry = () => { if (!suppressClick.current) onSelect(selectedCountry); };
             return (
-              <path
-                key={String(country.id)} d={path}
-                className={`map-country ${!showUnvisited && visited ? "is-visited" : ""} ${showUnvisited && !visited ? "is-unvisited-highlighted" : ""}`}
-                role="button" tabIndex={0}
-                aria-label={visited ? `${name}、訪問記録${visited.visits}件` : `${name}、未訪問`}
-                onClick={() => { if (!suppressClick.current) onSelect(selectedCountry); }}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault(); onSelect(selectedCountry);
-                  }
-                }}
-              ><title>{name}</title></path>
+              <g key={String(country.id)} className="map-country-shape">
+                <path
+                  d={path}
+                  className={`map-country ${!showUnvisited && visited ? "is-visited" : ""} ${showUnvisited && !visited ? "is-unvisited-highlighted" : ""}`}
+                  role="button" tabIndex={0}
+                  aria-label={visited ? `${name}、訪問記録${visited.visits}件` : `${name}、未訪問`}
+                  onClick={selectCountry}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault(); onSelect(selectedCountry);
+                    }
+                  }}
+                ><title>{name}</title></path>
+                {hasLargeHitArea && <path d={path} className="map-country-hit" aria-hidden="true" onClick={selectCountry} />}
+              </g>
             );
           })}
         </g>
