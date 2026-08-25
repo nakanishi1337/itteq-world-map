@@ -3,7 +3,7 @@ import { geoMercator, geoPath } from "d3-geo";
 import isoCountries from "i18n-iso-countries";
 import jaLocale from "i18n-iso-countries/langs/ja.json";
 import { feature } from "topojson-client";
-import worldAtlas from "world-atlas/countries-110m.json";
+import worldAtlas from "world-atlas/countries-50m.json";
 import type { Feature, FeatureCollection, GeoJsonProperties, Geometry } from "geojson";
 import type { Objects, Topology } from "topojson-specification";
 
@@ -16,6 +16,13 @@ const HEIGHT = 680;
 isoCountries.registerLocale(jaLocale);
 type CountryProperties = GeoJsonProperties & { name?: string };
 type CountryFeature = Feature<Geometry, CountryProperties> & { id?: string | number };
+// Natural Earthの50mデータで唯一省略される国連加盟国。首都フナフティを代表点として補う。
+const TUVALU_FEATURE: CountryFeature = {
+  type: "Feature",
+  id: "798",
+  properties: { name: "Tuvalu" },
+  geometry: { type: "Point", coordinates: [179.194, -8.521] },
+};
 const clampView = (zoom: number, x: number, y: number) => {
   const maxX = WIDTH * (zoom - 1) / 2;
   const maxY = HEIGHT * (zoom - 1) / 2;
@@ -39,6 +46,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   const map = useMemo(() => {
     const topology = worldAtlas as unknown as Topology<Objects<GeoJsonProperties>>;
     const collection = feature(topology, topology.objects.countries) as unknown as FeatureCollection<Geometry, CountryProperties>;
+    collection.features.push(TUVALU_FEATURE);
     // 南極（ISO numeric: 010）を除いて可住地域へ表示領域を合わせる。
     const visibleCollection: FeatureCollection<Geometry, CountryProperties> = {
       ...collection,
