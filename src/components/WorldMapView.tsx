@@ -13,6 +13,7 @@ type Props = { countries: VisitedCountry[]; showUnvisited: boolean; onSelect: (c
 const WIDTH = 1200;
 const MAP_HEIGHT = 590;
 const HEIGHT = 680;
+const MAX_ZOOM = 8;
 isoCountries.registerLocale(jaLocale);
 type CountryProperties = GeoJsonProperties & { name?: string };
 type CountryFeature = Feature<Geometry, CountryProperties> & { id?: string | number };
@@ -88,7 +89,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
       event.preventDefault();
       const start = pinchStart.current;
       const center = touchCenter(event);
-      const nextZoom = Math.min(4, Math.max(1, start.zoom * touchDistance(event) / start.distance));
+      const nextZoom = Math.min(MAX_ZOOM, Math.max(1, start.zoom * touchDistance(event) / start.distance));
       const ratio = nextZoom / start.zoom;
       setView(clampView(
         nextZoom,
@@ -118,7 +119,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   };
   const zoomAt = (nextZoom: number, pointX = WIDTH / 2, pointY = HEIGHT / 2) => {
     setView((current) => {
-      const zoom = Math.min(4, Math.max(1, nextZoom));
+      const zoom = Math.min(MAX_ZOOM, Math.max(1, nextZoom));
       if (zoom === 1) return { zoom: 1, x: 0, y: 0 };
       const ratio = zoom / current.zoom;
       return clampView(zoom, current.x + (1 - ratio) * (pointX - WIDTH / 2 - current.x), current.y + (1 - ratio) * (pointY - HEIGHT / 2 - current.y));
@@ -152,7 +153,7 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   return (
     <div className="world-map">
       <div className="map-zoom-controls" aria-label="地図の拡大縮小">
-        <button type="button" onClick={() => zoomAt(view.zoom + .5)} aria-label="地図を拡大">＋</button>
+        <button type="button" onClick={() => zoomAt(view.zoom + .5)} disabled={view.zoom === MAX_ZOOM} aria-label="地図を拡大">＋</button>
         <button type="button" onClick={() => zoomAt(view.zoom - .5)} disabled={view.zoom === 1} aria-label="地図を縮小">−</button>
         <button type="button" className="map-zoom-reset" onClick={() => setView({ zoom: 1, x: 0, y: 0 })} disabled={view.zoom === 1} aria-label="地図を全体表示" title="地図を全体表示">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5" /></svg>
