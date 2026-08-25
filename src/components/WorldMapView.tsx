@@ -13,7 +13,7 @@ type Props = { countries: VisitedCountry[]; showUnvisited: boolean; onSelect: (c
 const WIDTH = 1200;
 const MAP_HEIGHT = 590;
 const HEIGHT = 680;
-const ZOOM_LEVELS = [1, 2, 3, 4, 6, 8, 12, 16] as const;
+const ZOOM_LEVELS = [1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024] as const;
 const MAX_ZOOM = ZOOM_LEVELS.at(-1)!;
 isoCountries.registerLocale(jaLocale);
 type CountryProperties = GeoJsonProperties & { name?: string };
