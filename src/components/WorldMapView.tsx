@@ -13,7 +13,8 @@ type Props = { countries: VisitedCountry[]; showUnvisited: boolean; onSelect: (c
 const WIDTH = 1200;
 const MAP_HEIGHT = 590;
 const HEIGHT = 680;
-const MAX_ZOOM = 16;
+const ZOOM_LEVELS = [1, 2, 3, 4, 6, 8, 12, 16] as const;
+const MAX_ZOOM = ZOOM_LEVELS.at(-1)!;
 isoCountries.registerLocale(jaLocale);
 type CountryProperties = GeoJsonProperties & { name?: string };
 type CountryFeature = Feature<Geometry, CountryProperties> & { id?: string | number };
@@ -130,6 +131,8 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
       return clampView(zoom, current.x + (1 - ratio) * (pointX - WIDTH / 2 - current.x), current.y + (1 - ratio) * (pointY - HEIGHT / 2 - current.y));
     });
   };
+  const nextZoomLevel = () => ZOOM_LEVELS.find((zoom) => zoom > view.zoom) ?? MAX_ZOOM;
+  const previousZoomLevel = () => [...ZOOM_LEVELS].reverse().find((zoom) => zoom < view.zoom) ?? 1;
   const handlePointerDown = (event: PointerEvent<SVGSVGElement>) => {
     if (event.pointerType !== "mouse" || view.zoom === 1) return;
     dragStart.current = { clientX: event.clientX, clientY: event.clientY, x: view.x, y: view.y, moved: false, pointerId: event.pointerId };
@@ -158,8 +161,8 @@ export default function WorldMapView({ countries, showUnvisited, onSelect }: Pro
   return (
     <div className="world-map">
       <div className="map-zoom-controls" aria-label="地図の拡大縮小">
-        <button type="button" onClick={() => zoomAt(view.zoom + .5)} disabled={view.zoom === MAX_ZOOM} aria-label="地図を拡大">＋</button>
-        <button type="button" onClick={() => zoomAt(view.zoom - .5)} disabled={view.zoom === 1} aria-label="地図を縮小">−</button>
+        <button type="button" onClick={() => zoomAt(nextZoomLevel())} disabled={view.zoom === MAX_ZOOM} aria-label="地図を拡大">＋</button>
+        <button type="button" onClick={() => zoomAt(previousZoomLevel())} disabled={view.zoom === 1} aria-label="地図を縮小">−</button>
         <button type="button" className="map-zoom-reset" onClick={() => setView({ zoom: 1, x: 0, y: 0 })} disabled={view.zoom === 1} aria-label="地図を全体表示" title="地図を全体表示">
           <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 8V3h5M12 3h5v5M17 12v5h-5M8 17H3v-5" /></svg>
         </button>
