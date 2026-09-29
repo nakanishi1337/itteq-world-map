@@ -5,10 +5,9 @@ import os
 import re
 import sys
 import urllib.error
-import urllib.request
 from pathlib import Path
 
-from ntv.common import ROOT, read_json
+from ntv.common import ROOT, read_json, request as http_request
 from ntv.sources import previews
 
 MODEL = 'gpt-6-sol'
@@ -87,14 +86,9 @@ def call_openai(documents, api_key):
             },
         },
     }
-    request = urllib.request.Request(
-        'https://api.openai.com/v1/responses',
-        data=json.dumps(payload, ensure_ascii=False).encode('utf-8'),
-        headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
-    )
     try:
-        with urllib.request.urlopen(request, timeout=60) as response:
-            return json.loads(output_text(json.loads(response.read().decode('utf-8'))))
+        raw = http_request('https://api.openai.com/v1/responses', payload=payload, key=api_key)
+        return json.loads(output_text(json.loads(raw)))
     except urllib.error.HTTPError as error:
         # Keep response details out of Actions logs in case the provider echoes input.
         raise RuntimeError(f'OpenAI API returned HTTP {error.code}') from None
