@@ -5,3 +5,4 @@ dist
 *.tsbuildinfo
 __pycache__/
 *.py[cod]
+.cache/

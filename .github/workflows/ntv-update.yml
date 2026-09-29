@@ -1,0 +1,67 @@
+name: Weekly NTV data update
+on:
+  schedule:
+    - cron: '0 14 * * 0' # Sunday 23:00 JST
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+  actions: read
+concurrency:
+  group: ntv-data-update
+  cancel-in-progress: false
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Restore last successful collection artifact
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ntv-ci.py restore
+      - name: Preserve pending PR data on top of the current default branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/ntv-ci.py pending
+      - run: npm ci
+      - name: Unit tests
+        run: python3 -m unittest discover -s scripts/tests -v
+      - name: Collect and resolve
+        env:
+          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+        run: python3 scripts/update-ntv.py
+      - run: python3 scripts/update-ntv.py --validate-only
+      - run: npm run lint
+      - run: npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ntv-cache
+          path: .cache/ntv
+          include-hidden-files: true
+          retention-days: 90
+      - name: Run summary
+        run: |
+          cat data/ntv/generated/report.md >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          cat .cache/ntv/run.json >> "$GITHUB_STEP_SUMMARY"
+      - name: Create or update review PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.NTV_PR_TOKEN || github.token }}
+          branch: automation/ntv-data
+          commit-message: 'data: update NTV broadcast records'
+          title: '日テレ放送データの週次更新'
+          body-path: data/ntv/generated/report.md
+          add-paths: |
+            src/data/episodes-ntv.json
+            data/ntv/generated/

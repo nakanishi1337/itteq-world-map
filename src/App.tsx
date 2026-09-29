@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import WorldMapView, { type VisitedCountry } from "./components/WorldMapView";
 import episodesData from "./data/episodes.json";
+import ntvEpisodesData from "./data/episodes-ntv.json";
 
-type Episode = { date: string | null; countryCode: string; countryName: string; project: string; performers: string[]; source: string };
+type Episode = { date: string | null; countryCode: string; countryName: string; project: string; performers: string[]; source: string; sources?: string[] };
 type Broadcast = Episode & { countryNames: string[] };
-const episodes = episodesData as Episode[];
+const episodes = [...episodesData, ...ntvEpisodesData] as Episode[];
 
 function aggregateCountries(items: Episode[]): VisitedCountry[] {
   const countries = new Map<string, VisitedCountry>();
@@ -44,6 +45,7 @@ export default function App() {
       const current = broadcasts.get(key);
       if (current) {
         if (!current.countryNames.includes(episode.countryName)) current.countryNames.push(episode.countryName);
+        current.sources = [...new Set([...(current.sources ?? [current.source]), ...(episode.sources ?? [episode.source])])];
       } else {
         broadcasts.set(key, { ...episode, countryNames: [episode.countryName] });
       }
@@ -94,6 +96,7 @@ export default function App() {
                     <strong>{episode.project}</strong>
                     {!selectedCountry && <p>訪問国：{episode.countryNames.join("、")}</p>}
                     {episode.performers.length > 0 && <p>出演：{episode.performers.join("、")}</p>}
+                    <p>{(episode.sources ?? [episode.source]).map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{i > 0 ? " ／ " : ""}出典{i + 1}</a>)}</p>
                   </div>
                 </li>
               ))}
@@ -101,7 +104,7 @@ export default function App() {
           ) : <p className="no-broadcasts">該当する放送記録はありません。</p>}
         </section>
       )}
-      <footer><p>2007年からの<a href="https://ja.wikipedia.org/wiki/世界の果てまでイッテQ!#放送リスト" target="_blank" rel="noreferrer">Wikipedia放送リスト</a>をもとに、訪問先を記録しています。</p><small>制作：<a href="https://github.com/nakanishi1337" target="_blank" rel="noreferrer">@nakanishi1337</a> ｜ 非公式の個人制作サイトです。掲載内容の完全性・正確性を保証するものではありません。</small></footer>
+      <footer><p>2007年からの<a href="https://ja.wikipedia.org/wiki/世界の果てまでイッテQ!#放送リスト" target="_blank" rel="noreferrer">Wikipedia放送リスト</a>と<a href="https://www.ntv.co.jp/q/" target="_blank" rel="noreferrer">日テレの番組記事</a>をもとに、訪問先を記録しています。日テレ由来の記録では、企画欄の出演者全員を、その企画の各訪問国に紐付けています。地名の国への対応には<a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>（CC BY 4.0、抽出・加工）を利用しています。</p><small>制作：<a href="https://github.com/nakanishi1337" target="_blank" rel="noreferrer">@nakanishi1337</a> ｜ 非公式の個人制作サイトです。掲載内容の完全性・正確性を保証するものではありません。</small></footer>
     </main>
   );
 }
