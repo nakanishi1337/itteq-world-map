@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-shot OpenAI extraction check for two known NTV previews."""
+"""One-shot OpenAI extraction check for known NTV previews and OA summaries."""
 import json
 import os
 import re
@@ -9,14 +9,16 @@ import urllib.request
 from pathlib import Path
 
 from ntv.common import ROOT, read_json
-from ntv.sources import previews
+from ntv.sources import previews, summaries
 
 MODEL = 'gpt-6-sol'
 TARGETS = {
+    '2026-02-15': 'xb8d5pluwyejoiic:1',
     '2026-08-09': 'yk4x6uolnrg85y8k:1',
     '2026-08-23': '4hk8pk80ica7w563:1',
 }
 EXPECTED = {
+    '2026-02-15': ['FI'],
     '2026-08-09': ['CH', 'FR'],
     '2026-08-23': ['CH', 'GB', 'NL'],
 }
@@ -54,15 +56,24 @@ def output_text(response):
 
 def get_input():
     fixture = ROOT / 'scripts/tests/fixtures/ntv-evaluation-articles.json'
-    rows = previews(read_json(fixture))
+    articles = read_json(fixture)
+    rows = previews(articles)
     indexed = {row['id']: row for row in rows}
+    summaries_by_date = {row['date']: row for row in summaries(articles)}
     result = []
     for date, row_id in TARGETS.items():
         row = indexed.get(row_id)
         if row is None or row['date'] != date:
             raise ValueError(f'preview fixture missing for {date}')
-        result.append({'date': date, 'project': row['project'], 'source': row['source'],
-                       'officialPreview': row['body']})
+        document = {'date': date, 'project': row['project'], 'source': row['source'],
+                    'officialPreview': row['body']}
+        if date == '2026-02-15':
+            summary = summaries_by_date.get(date)
+            if summary is None:
+                raise ValueError(f'official OA summary fixture missing for {date}')
+            document['officialOaSummary'] = summary['text']
+            document['summarySource'] = summary['url']
+        result.append(document)
     return result
 
 
