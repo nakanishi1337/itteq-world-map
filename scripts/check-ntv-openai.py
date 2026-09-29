@@ -97,7 +97,14 @@ def call_openai(documents, api_key):
             return json.loads(output_text(json.loads(response.read().decode('utf-8'))))
     except urllib.error.HTTPError as error:
         # Keep response details out of Actions logs in case the provider echoes input.
-        raise RuntimeError(f'OpenAI API returned HTTP {error.code}') from None
+        try:
+            api_error = json.loads(error.read().decode('utf-8')).get('error', {})
+        except (UnicodeDecodeError, ValueError, AttributeError):
+            api_error = {}
+        details = [api_error.get(key) for key in ('code', 'type')]
+        safe_details = [value for value in details if isinstance(value, str) and re.fullmatch(r'[A-Za-z0-9_-]{1,80}', value)]
+        suffix = f" ({', '.join(safe_details)})" if safe_details else ''
+        raise RuntimeError(f'OpenAI API returned HTTP {error.code}{suffix}') from None
 
 
 def main():
