@@ -47,9 +47,7 @@ jobs:
           retention-days: 90
       - name: Run summary
         run: |
-          cat data/broadcasts/generated/report.md >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          cat .cache/ntv/run.json >> "$GITHUB_STEP_SUMMARY"
+          cat .cache/ntv/run.md >> "$GITHUB_STEP_SUMMARY"
       - name: Commit and push generated data
         env:
           NTV_TARGET_BRANCH: ${{ github.event.repository.default_branch }}

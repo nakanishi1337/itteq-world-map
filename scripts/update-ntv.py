@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Collect official articles, resolve destinations, and append visits to the shared episode dataset."""
 import argparse
+import calendar
 import datetime as dt
 import hashlib
 import json
@@ -25,7 +26,7 @@ def validate(episodes):
 
 def report(decisions, warnings):
     accepted = sum(d['status'] == 'accepted' for d in decisions)
-    lines = ['# 日テレ放送データの更新状況', '',
+    lines = ['# 保存済みの放送履歴（今回のAI処理一覧ではありません）', '',
              f'放送日: 処理済み {accepted} / 保留 {len(decisions) - accepted}', '',
              '放送日ごとの予告・OAまとめ・番組表をAIで統合します。検証後にmainへ自動pushします。', '',
              '| 放送日 | 状態 | 企画 | 国 | 処理結果 |', '|---|---|---|---|---|']
@@ -42,16 +43,60 @@ def report(decisions, warnings):
     return '\n'.join(lines) + '\n'
 
 
+def month_before(day):
+    year, month = (day.year - 1, 12) if day.month == 1 else (day.year, day.month - 1)
+    return dt.date(year, month, min(day.day, calendar.monthrange(year, month)[1]))
+
+
+def run_report(since, today, runs, client, warnings):
+    ai = [r for r in runs if r['apiRequests']]
+    reused = [r['date'] for r in runs if r['mode'] == 'unchanged']
+    cached = [r['date'] for r in runs if r['mode'] == 'cache']
+    pending = [r for r in runs if r['decision']['status'] == 'pending']
+    lines = ['# 今回の更新結果', '', f'対象期間: {since} ～ {today}（両端を含む）', '',
+             f'AI呼び出し: **{client.calls}回** / AI処理対象: {len(ai)}日 / 変更なし: {len(reused)}日 / APIキャッシュ利用: {len(cached)}日 / 保留: {len(pending)}日', '',
+             '対象期間外の保存済みデータは保持し、AI処理していません。', '',
+             '## 今回AIに送った放送日', '']
+    if ai:
+        lines += ['| 放送日 | 再処理のきっかけ | 結果 | 今回取得した企画 |', '|---|---|---|---|']
+        for r in ai:
+            d = r['decision']
+            titles = '、'.join(p['project'] for p in d['projects']) or '企画なし'
+            result = '取得成功'
+            if d['status'] == 'pending':
+                titles = '—（以前のデータを保持）'
+                result = '保留: ' + d['reason']
+            titles = titles.replace('|', '／').replace('\n', ' ')
+            lines.append(f"| {r['date']} | {r['trigger']} | {result} | {titles} |")
+    else:
+        lines += ['なし。今回AIへのリクエストはありません。']
+    lines += ['', '## AIを呼ばず再利用した放送日', '',
+              '変更なし: ' + ('、'.join(reused) or 'なし'), '',
+              '保存済みAPI回答: ' + ('、'.join(cached) or 'なし')]
+    no_request = [r for r in pending if not r['apiRequests']]
+    if no_request:
+        lines += ['', '## API呼び出し前の保留', '']
+        lines += [f"- {r['date']}: {r['decision']['reason']}" for r in no_request]
+    if client.usage:
+        lines += ['', f"トークン使用量: 入力 {client.usage.get('input_tokens', 0)} / 出力 {client.usage.get('output_tokens', 0)}"]
+    if warnings:
+        lines += ['', '## 取得上の注意', ''] + ['- ' + w for w in sorted(set(warnings))]
+    return '\n'.join(lines) + '\n'
+
+
 def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--input', type=Path)
-    p.add_argument('--since', type=dt.date.fromisoformat, default=dt.date(2026, 7, 27))
+    p.add_argument('--since', type=dt.date.fromisoformat, help='対象期間の開始日。省略時は--todayの1か月前（前月同日、存在しなければ月末）')
     p.add_argument('--today', type=dt.date.fromisoformat, default=dt.datetime.now(ZoneInfo('Asia/Tokyo')).date())
     p.add_argument('--cache-dir', type=Path, default=ROOT / '.cache/ntv')
     p.add_argument('--output-dir', type=Path, help='検証用出力先。省略時はリポジトリのデータを更新')
     p.add_argument('--offline', action='store_true', help='--input必須。通信せず、番組表・OpenAI回答は保存済み資料のみ')
     p.add_argument('--validate-only', action='store_true')
     args = p.parse_args()
+    args.since = args.since or month_before(args.today)
+    if args.since > args.today:
+        p.error("--since must not be later than --today")
     baseline = ROOT / 'src/data/episodes.json'
     initial_hash = hashlib.sha256(baseline.read_bytes()).hexdigest()
     legacy, _ = split_episodes(read_json(baseline))
@@ -84,10 +129,15 @@ def main():
             grouped.setdefault(doc['date'], []).append(doc)
     decisions = dict(old)
     reused = 0
+    runs = []
     for date, documents in sorted(grouped.items()):
+        calls, hits = client.calls, client.hits
         d = decide(date, documents, client, old.get(date))
         if d is old.get(date):
             reused += 1
+        mode = 'ai' if client.calls > calls else 'cache' if client.hits > hits else 'unchanged' if d is old.get(date) else 'pending'
+        trigger = '未処理' if date not in old else '前回保留の再試行' if old[date]['status'] == 'pending' else '資料・抽出設定の変更'
+        runs.append({'date': date, 'mode': mode, 'trigger': trigger, 'apiRequests': client.calls - calls, 'decision': d})
         decisions[date] = d
     decisions = sorted(decisions.values(), key=lambda d: d['date'])
     # Dates not collected in this run keep their existing rows, including legacy additions.
@@ -103,7 +153,8 @@ def main():
     write_json(dest / 'decisions.json', manifest)
     dest.mkdir(parents=True, exist_ok=True)
     (dest / 'report.md').write_text(markdown)
-    stats = {'apiRequests': client.calls, 'cacheHits': client.hits, 'unchangedBroadcasts': reused, 'usage': client.usage,
+    (args.cache_dir / 'run.md').write_text(run_report(args.since, args.today, runs, client, warnings))
+    stats = {'since': args.since.isoformat(), 'today': args.today.isoformat(), 'processedDates': [r['date'] for r in runs if r['apiRequests']], 'apiRequests': client.calls, 'cacheHits': client.hits, 'unchangedBroadcasts': reused, 'usage': client.usage,
              'episodeRecords': len(episodes), 'totalEpisodeRecords': len(legacy) + len(episodes), 'broadcasts': len(decisions), 'warnings': warnings}
     write_json(args.cache_dir / 'run.json', stats)
     print(json.dumps(stats, ensure_ascii=False))

@@ -18,7 +18,7 @@ python3 scripts/update-ntv.py --validate-only
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-対象は2026-07-27以降です。`--since` と `--today` で対象期間を指定できます。未来の放送は追加しません。別の出力先を初めて使う場合、元のWikipedia行だけを引き継ぎ、追加分は別途生成します。
+更新対象は実行日（日本時間）の1か月前から当日までです。前月同日が存在しない場合は前月末を使います（例: 3月31日なら2月28日、うるう年は29日）。`--since` と `--today` で対象期間を指定できます。未来の放送は追加しません。別の出力先を初めて使う場合、元のWikipedia行だけを引き継ぎ、追加分は別途生成します。
 
 ## 取得と抽出
 
@@ -49,4 +49,4 @@ python3 -m unittest discover -s scripts/tests -v
 
 テスト・データ検証・lint・build成功後、訪問データ・判定JSON・レポートの3ファイルだけをmainへ自動コミット・pushします。差分がなければコミットしません。mainが処理中に進んだ場合は停止し、強制pushしません。
 
-pushには `GITHUB_TOKEN` を使い、公開サイトはCloudflareのGit連携で更新します。保留があっても取得できた分は公開します。日付ごとの状態は生成レポート、API回数と使用量はActionsのSummaryと `run.json` で確認できます。
+pushには `GITHUB_TOKEN` を使い、公開サイトはCloudflareのGit連携で更新します。保留があっても取得できた分は公開します。ActionsのSummaryと `.cache/ntv/run.md` には今回AIに送った日付・企画、変更なしで再利用した日付、キャッシュ利用、保留を区別して表示します。全保存履歴は `generated/report.md` に残します。API回数・使用量・対象期間は `run.json` にも記録します。対象期間外の履歴は削除せず、再処理しません。
