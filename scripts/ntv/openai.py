@@ -35,7 +35,7 @@ def validate(value):
     return sorted(set(value['countries']))
 
 
-def output(response):
+def output(response, validator=validate):
     if not isinstance(response, dict) or response.get('status') != 'completed':
         raise OpenAIUnavailable('incomplete_response')
     texts = []
@@ -45,7 +45,7 @@ def output(response):
                 raise OpenAIUnavailable('model_refusal')
             if content.get('type') == 'output_text':
                 texts.append(content['text'])
-    return validate(json.loads(''.join(texts)))
+    return validator(json.loads(''.join(texts)))
 
 
 class OpenAI:
@@ -58,11 +58,14 @@ class OpenAI:
     def countries(self, row, docs):
         material = {'broadcastDate': row['date'], 'project': row['project'],
                     'performers': row['performers'], 'documents': docs}
-        key = digest([MODEL, PROMPT, SCHEMA, material])
+        return self.extract(material, PROMPT, SCHEMA, validate, 'itteq_countries')
+
+    def extract(self, material, prompt, schema, validator, name):
+        key = digest([MODEL, prompt, schema, material])
         path = self.cache / (key + '.json')
         cached = read_json(path)
         if cached is not None:
-            codes = validate(cached)
+            codes = validator(cached)
             self.hits += 1
             return codes
         if self.offline:
@@ -71,20 +74,20 @@ class OpenAI:
         if not api_key:
             raise OpenAIUnavailable('openai_api_key_missing')
         payload = {'model': MODEL, 'store': False,
-                   'input': [{'role': 'system', 'content': PROMPT},
+                   'input': [{'role': 'system', 'content': prompt},
                              {'role': 'user', 'content': json.dumps(material, ensure_ascii=False)}],
-                   'text': {'format': {'type': 'json_schema', 'name': 'itteq_countries',
-                                       'strict': True, 'schema': SCHEMA}}}
+                   'text': {'format': {'type': 'json_schema', 'name': name,
+                                       'strict': True, 'schema': schema}}}
         self.calls += 1
         try:
             response = json.loads(request('https://api.openai.com/v1/responses', payload, api_key, timeout=90))
-            codes = output(response)
+            codes = output(response, validator)
         except urllib.error.HTTPError as error:
             raise OpenAIUnavailable(f'openai_http_{error.code}') from None
         except (OSError, ValueError, KeyError, TypeError) as error:
             raise OpenAIUnavailable('openai_' + type(error).__name__) from None
-        for name, value in response.get('usage', {}).items():
+        for metric, value in response.get('usage', {}).items():
             if isinstance(value, int):
-                self.usage[name] = self.usage.get(name, 0) + value
-        write_json(path, {'countries': codes})
+                self.usage[metric] = self.usage.get(metric, 0) + value
+        write_json(path, {'countries': codes} if name == 'itteq_countries' else codes)
         return codes

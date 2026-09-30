@@ -54,32 +54,7 @@ def project_key(title):
     return re.sub(r'[\W_]+', '', normalize(title)).lower()
 
 
-def cast(body):
-    # Continuation lines are consumed only after a trailing list separator.
-    raw, continuing = [], False
-    for line in body.splitlines():
-        match = re.match(r'^(?:出演者|スペシャルゲスト|ゲスト)\s*[：:]\s*(.*)', line)
-        if match:
-            raw.append(match[1])
-        elif continuing and not line.startswith(('※', 'スタジオ')):
-            raw.append(line)
-        else:
-            continuing = False
-            continue
-        continuing = bool(re.search(r'[、・，/]\s*$', line))
-    # Preserve Latin spelling such as Kōki, and split Japanese separators only.
-    value = '、'.join(raw)
-    parts, current, depth = [], '', 0
-    for ch in value:
-        if ch in '(（': depth += 1
-        if ch in ')）': depth = max(0, depth - 1)
-        if ch in '、・，／/' and not depth:
-            if current.strip(): parts.append(current.strip())
-            current = ''
-        else:
-            current += ch
-    if current.strip(): parts.append(current.strip())
-    return list(dict.fromkeys(parts))
+cast = PREVIEWS['cast']
 
 
 def previews(articles):
@@ -87,7 +62,6 @@ def previews(articles):
     if result['articleIssues']:
         raise ValueError('予告記事の構造異常: ' + str(result['articleIssues']))
     for r in result['records']:
-        r['performers'] = cast(r['body'])
         r['id'] = r['articleId'] + ':' + str(r['projectIndex'])
     return result['records']
 
@@ -113,8 +87,6 @@ def summaries(articles):
 
 
 def parse_schedule(html, url, expected_date=None):
-    parser = Text()
-    parser.feed(html)
     text = plain(html)
     date = re.search(r'(\d{4})年(\d{2})月(\d{2})日[^\n]*?(\d{1,2})時(\d{2})分', text)
     if not date or not re.search(r'イッテ[QＱ]', text) or '再放送' in text or '[再]' in normalize(text):
@@ -126,7 +98,7 @@ def parse_schedule(html, url, expected_date=None):
     return {'kind': 'schedule', 'id': digest(url), 'date': day, 'title': '日本海テレビ番組表', 'text': text, 'url': url}
 
 
-def schedules(cache, warnings, today, manual):
+def schedules(cache, warnings, manual):
     folder = cache / 'schedules'
     docs = {d['url']: d for p in sorted(folder.glob('*.json')) if (d := read_json(p))}
     urls = {}

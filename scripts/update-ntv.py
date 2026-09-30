@@ -11,6 +11,7 @@ from ntv.common import ROOT, split_episodes, digest, read_json, write_json, requ
 from ntv.openai import OpenAI
 from ntv.geography import PLACES
 from ntv.pipeline import decide, make_episodes
+from ntv.summary import decide_summary, reconcile
 from ntv.sources import NTV, previews, summaries, schedules, project_key
 
 
@@ -26,20 +27,18 @@ def validate(episodes):
 
 def report(decisions, gaps, warnings):
     counts = {s: sum(d['status'] == s for d in decisions) for s in ('accepted', 'pending', 'excluded')}
-    lines = ['# 日テレ放送データの更新候補', '',
-             f"企画: 採用 {counts['accepted']} / 保留 {counts['pending']} / 除外 {counts['excluded']}",
-             f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / OpenAI確定 {sum(d['status']=='accepted' and d['method']=='openai' for d in decisions)}", '',
+    lines = ['# 日テレ放送データの更新状況', '',
+             f"企画・記事: 採用 {counts['accepted']} / 保留 {counts['pending']} / 除外 {counts['excluded']}",
+             f'OAまとめの抽出保留: {len(gaps)}件（上記の保留に含みます）',
+             f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / OpenAI確定 {sum(d['status']=='accepted' and d['method'] in ('openai', 'openai_summary') for d in decisions)}", '',
              'GitHub Actionsでは検証後に更新データをmainへ自動コミット・pushします。', '',
-             '出演者は日テレの企画欄を使用し、採用した各国に全員を紐付けます。', '',
+             '予告由来は企画の出演者一覧、OAまとめ由来はAIが抽出した国ごとの出演者を使用します。', '',
              '| 放送日 | 企画 | 判定 | 国 | 根拠・保留理由 |', '|---|---|---|---|---|']
     for d in decisions:
         title = d['project'].replace('|', '／').replace('\n', ' ')
         countries = ', '.join(c['countryCode'] for c in d['countries']) or '—'
         links = ' '.join(f"[根拠]({u})" for u in sorted({c['evidence']['url'] for c in d['countries']}))
         lines.append(f"| {d['date']} | [{title}]({d['source']}) | {d['status']} | {countries} | {d['reason']} {links} |")
-    if gaps:
-        lines += ['', '## 予告が見つからない放送・記事', '']
-        lines += [f"- {g['date']}: [{g['title']}]({g['url']})（出演者を推測せず保留）" for g in gaps]
     if warnings:
         lines += ['', '## 取得上の注意', ''] + ['- ' + w for w in sorted(set(warnings))]
     return '\n'.join(lines) + '\n'
@@ -51,7 +50,7 @@ def main():
     p.add_argument('--since', type=dt.date.fromisoformat, default=dt.date(2026, 7, 27))
     p.add_argument('--today', type=dt.date.fromisoformat, default=dt.datetime.now(ZoneInfo('Asia/Tokyo')).date())
     p.add_argument('--cache-dir', type=Path, default=ROOT / '.cache/ntv')
-    p.add_argument('--output-dir', type=Path, help='検証用出力先。省略時はリポジトリの更新候補を生成')
+    p.add_argument('--output-dir', type=Path, help='検証用出力先。省略時はリポジトリのデータを更新')
     p.add_argument('--offline', action='store_true', help='--input必須。通信せず、番組表・OpenAI回答は保存済み資料のみ')
     p.add_argument('--validate-only', action='store_true')
     args = p.parse_args()
@@ -77,7 +76,7 @@ def main():
     if args.offline:
         schedule_docs = [read_json(f) for f in sorted((args.cache_dir / 'schedules').glob('*.json'))]
     else:
-        schedule_docs = schedules(args.cache_dir, warnings, args.today, references)
+        schedule_docs = schedules(args.cache_dir, warnings, references)
     docs += schedule_docs
     for ref in references:
         if ref.get('text'):
@@ -114,18 +113,27 @@ def main():
             if old.get(key) == d and d['status'] in ('accepted', 'excluded'):
                 reused += 1
         decisions.append(d)
+    for doc in docs:
+        if doc['kind'] != 'summary' or not args.since.isoformat() <= doc['date'] <= args.today.isoformat():
+            continue
+        key = 'summary:' + doc['id']
+        current_ids.add(key)
+        d = decide_summary(doc, eligible, client, args.since, args.today, old.get(key))
+        if old.get(key, {}).get('inputHash') == d['inputHash'] and 'answer' in old.get(key, {}):
+            reused += 1
+        decisions.append(d)
     for key, d in old.items():
         if key not in current_ids:
             d = dict(d, status='pending', reason='source_missing_or_outside_window')
             decisions.append(d)
+    reconcile(decisions)
     decisions.sort(key=lambda d: (d['date'] or '9999-12-31', d['id']))
-    known_dates = {r['date'] for r in rows}
-    gaps = sorted([d for d in docs if d['date'] not in known_dates and args.since.isoformat() <= d['date'] <= args.today.isoformat()], key=lambda d: (d['date'], d['url']))
+    gaps = [d for d in decisions if d.get('sourceKind') == 'summary' and d['status'] == 'pending']
     episodes = make_episodes(decisions, previous, overrides)
     validate(episodes)
     if hashlib.sha256(baseline.read_bytes()).hexdigest() != initial_hash:
         raise ValueError('既存データが実行中に変更されました')
-    manifest = {'schemaVersion': 2, 'projects': decisions, 'missingPreviews': gaps}
+    manifest = {'schemaVersion': 3, 'projects': decisions}
     markdown = report(decisions, gaps, warnings)
     # Prepare all data before replacing output files. A failed validation never publishes data.
     write_json(episode_path, legacy + episodes)

@@ -13,10 +13,6 @@ import urllib.request
 
 SOURCE = 'https://www.ntv.co.jp/q/articles.json'
 ROOT = Path(__file__).resolve().parents[1]
-# 国名辞書は取得コードから独立させる。こちらのCLIは従来の国候補抽出専用。
-_PLACE_DATA = json.loads((ROOT / 'data/ntv/places.json').read_text(encoding='utf-8'))
-COUNTRIES = {name: value['code'] for name, value in _PLACE_DATA['aliases'].items() if value['kind'] == 'country'}
-COUNTRY_PATTERN = re.compile('|'.join(map(re.escape, sorted(COUNTRIES, key=len, reverse=True))))
 PREVIEW = re.compile(r'(\d{1,2})月(\d{1,2})日の[「『]イッテ[QＱ][!！]?[」』]は')
 
 
@@ -81,42 +77,32 @@ def broadcast_date(title, published):
     return candidates[0] if len(candidates) == 1 else None
 
 
-def split_cast(value):
-    # 括弧内の所属名や区切りはそのまま保持する。
+def cast(body):
+    # Continuation lines are consumed only after a trailing list separator.
+    raw, continuing = [], False
+    for line in body.splitlines():
+        match = re.match(r'^(?:出演者|スペシャルゲスト|ゲスト)\s*[：:]\s*(.*)', line)
+        if match:
+            raw.append(match[1])
+        elif continuing and not line.startswith(('※', 'スタジオ')):
+            raw.append(line)
+        else:
+            continuing = False
+            continue
+        continuing = bool(re.search(r'[、・，/]\s*$', line))
+    # Preserve Latin spelling such as Kōki, and split Japanese separators only.
+    value = '、'.join(raw)
     parts, current, depth = [], '', 0
-    for char in value:
-        if char in '(（':
-            depth += 1
-        elif char in ')）':
-            depth = max(0, depth - 1)
-        if char in '、,，・／/' and depth == 0:
-            if current.strip():
-                parts.append(current.strip())
+    for ch in value:
+        if ch in '(（': depth += 1
+        if ch in ')）': depth = max(0, depth - 1)
+        if ch in '、・，／/' and not depth:
+            if current.strip(): parts.append(current.strip())
             current = ''
         else:
-            current += char
-    if current.strip():
-        parts.append(current.strip())
+            current += ch
+    if current.strip(): parts.append(current.strip())
     return list(dict.fromkeys(parts))
-
-
-def country_candidates(text):
-    found = {}
-    for match in COUNTRY_PATTERN.finditer(text):
-        name = match[0]
-        # タイム、オマーン内のマリ等の部分一致を避ける。
-        before = text[match.start()-1:match.start()] if match.start() else ''
-        after = text[match.end():match.end()+1]
-        if name == 'スイス' and text[match.end():].startswith('アルプス'):
-            after = ''
-        if any(re.fullmatch('[ァ-ヺー]', c) for c in (before, after) if c):
-            continue
-        code = COUNTRIES[name]
-        entry = found.setdefault(code, {'countryCode': code, 'matchedNames': [], 'evidence': []})
-        if name not in entry['matchedNames']:
-            entry['matchedNames'].append(name)
-        entry['evidence'].append({'text': name, 'start': match.start(), 'end': match.end()})
-    return list(found.values())
 
 
 def collect(articles, since=None):
@@ -160,21 +146,18 @@ def collect(articles, since=None):
             issues.append({'articleId': article_id, 'source': url, 'reason': 'missing_headings', 'bodyHtml': body})
         for index, section in enumerate(parser.sections, 1):
             project, text = clean(section['heading']), clean(section['body'])
-            cast_lines = re.findall(r'^出演者\s*[：:]\s*(.*)$', text, re.M)
-            cast = split_cast('、'.join(cast_lines))
-            evidence_text = project + '\n' + text
-            countries = country_candidates(evidence_text)
+            performers = cast(text)
             warnings = []
-            for missing, reason in ((not date, 'unknown_broadcast_date'), (not project, 'missing_project'), (not cast, 'missing_performers'), (not countries, 'no_country_candidates')):
+            for missing, reason in ((not date, 'unknown_broadcast_date'), (not project, 'missing_project'), (not performers, 'missing_performers')):
                 if missing:
                     warnings.append(reason)
-            records.append({'articleId': article_id, 'projectIndex': index, 'source': url, 'publishedAt': published, 'date': date, 'project': project, 'performers': cast, 'countryCandidates': countries, 'body': text, 'evidenceText': evidence_text, 'reviewReasons': warnings})
+            records.append({'articleId': article_id, 'projectIndex': index, 'source': url, 'publishedAt': published, 'date': date, 'project': project, 'performers': performers, 'body': text, 'reviewReasons': warnings})
     if not preview_count:
         raise ValueError('予告記事が0件です。入力形式を確認してください')
     if not records and issues:
         raise ValueError('企画を抽出できませんでした: ' + json.dumps(issues, ensure_ascii=False))
     records.sort(key=lambda x: (x['date'] or '9999-12-31', x['articleId'], x['projectIndex']))
-    return {'schemaVersion': 1, 'source': SOURCE, 'summary': {'articles': len(articles), 'previewArticles': preview_count, 'projects': len(records), 'projectsWithWarnings': sum(bool(r['reviewReasons']) for r in records), 'articleIssues': len(issues)}, 'records': records, 'articleIssues': issues}
+    return {'schemaVersion': 2, 'source': SOURCE, 'summary': {'articles': len(articles), 'previewArticles': preview_count, 'projects': len(records), 'projectsWithWarnings': sum(bool(r['reviewReasons']) for r in records), 'articleIssues': len(issues)}, 'records': records, 'articleIssues': issues}
 
 
 def check_output(path):

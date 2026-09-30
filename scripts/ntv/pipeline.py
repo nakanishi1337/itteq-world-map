@@ -74,10 +74,12 @@ def make_episodes(decisions, previous, overrides):
         by_id.setdefault(episode['projectId'], []).append(episode)
     for d in decisions:
         key = d['id']
-        if d['status'] == 'accepted':
+        if d.get('supersededBy'):
+            by_id.pop(key, None)
+        elif d['status'] == 'accepted':
             by_id[key] = [{'projectId': key, 'date': d['date'], 'countryCode': c['countryCode'],
                            'countryName': PLACES['names'][c['countryCode']], 'project': d['project'],
-                           'performers': d['performers'], 'source': d['source'],
+                           'performers': c.get('performers', d['performers']), 'source': d['source'],
                            'sources': sorted({d['source'], c['evidence']['url']} |
                                              {doc['url'] for doc in d.get('documents', [])})}
                           for c in d['countries']]
