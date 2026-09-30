@@ -19,11 +19,21 @@
           "url": "https://www.ntv.co.jp/q/articles/304s5zyb9qck7wngegl.html"
         }
       ],
-      "inputHash": "7c2635ab372f1c403694a190a284de70f1d1664861b7dd52aa8b5e785d634d01",
+      "inputHash": "85aeb4343f88e428f6d7fcd879486b02e5f53ac77a768a86ca4c9fd5c929ed0b",
       "model": "gpt-6-sol",
       "status": "accepted",
-      "reason": "openai_empty",
-      "projects": []
+      "reason": "openai_projects",
+      "projects": [
+        {
+          "project": "夏休み爆笑アワード！",
+          "performers": [],
+          "countries": [],
+          "sourceUrls": [
+            "https://www.ntv.co.jp/q/articles/304ittu9vevcz7bzs70.html",
+            "https://www.ntv.co.jp/q/articles/304s5zyb9qck7wngegl.html"
+          ]
+        }
+      ]
     },
     {
       "date": "2026-08-09",
@@ -43,7 +53,7 @@
           "url": "https://www.ntv.co.jp/q/articles/304yk4x6uolnrg85y8k.html"
         }
       ],
-      "inputHash": "b15d7851d2ee84e45c0029aeca275a82874c32a8333a8bba38e6d5cfe04bd66b",
+      "inputHash": "afa109c24d0eb8627a70d84b6113944e49490a5b6188169abb8a6f0faee46c6f",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
@@ -87,7 +97,7 @@
           "url": "https://www.ntv.co.jp/q/articles/3048naib1i1t2vtq4pf.html"
         }
       ],
-      "inputHash": "e05ad00477e0c68ca04aad9b94ecbc169d51d6c8812a9472745eff53cf0581cf",
+      "inputHash": "43e631564dca5ffe7d5640faebc67b742b22c7311451b78f58ab0ccbaeaadf44",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
@@ -132,7 +142,7 @@
           "url": "https://www.ntv.co.jp/q/articles/30457k521kjmj1kf5cu.html"
         }
       ],
-      "inputHash": "78865ef560972022098e6c019e065b14287ea6baefd25cfb6a120677dc0c2ca6",
+      "inputHash": "120eb99ce49d5a7b3042ff2206463a3881a112d7489907a4ec5cd40527bd664a",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
@@ -181,7 +191,7 @@
           "url": "https://www.ntv.co.jp/q/articles/304v3kt36ikpvra6c3n.html"
         }
       ],
-      "inputHash": "13be7051dc098b066e3f671dad219ef1f2f62252157258e7ec6fda1847b65da6",
+      "inputHash": "1a70b1cbbba339a39bddb79e4058b1eb86df91573e5d66f2c2d928a3833344fa",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
@@ -230,11 +240,30 @@
           "url": "https://www.ntv.co.jp/q/articles/304q18unf2mza4gk91n.html"
         }
       ],
-      "inputHash": "8636ec4929f8f4bd08de5b9d7b7653c4ce2382c5daf738c528f67e2eae76bc8d",
+      "inputHash": "f4b82ed0c7c61651db414cbbe3824a000cd6aa1d1b6b1546ad4ba42d4fca6eb7",
       "model": "gpt-6-sol",
       "status": "accepted",
-      "reason": "openai_empty",
-      "projects": []
+      "reason": "openai_projects",
+      "projects": [
+        {
+          "project": "イッテQ！秋の爆笑アワード",
+          "performers": [
+            "はーたみん",
+            "みやぞん",
+            "イモトアヤコ",
+            "中岡創一",
+            "出川哲朗",
+            "女芸人",
+            "宮川大輔",
+            "川口春奈",
+            "手越祐也"
+          ],
+          "countries": [],
+          "sourceUrls": [
+            "https://www.ntv.co.jp/q/articles/304q18unf2mza4gk91n.html"
+          ]
+        }
+      ]
     },
     {
       "date": "2026-09-20",
@@ -261,7 +290,7 @@
           "url": "https://www.ntv.co.jp/q/articles/304sbksf8gu6edkn6ny.html"
         }
       ],
-      "inputHash": "9128f39dd3edd376c6e22b0eb1290a49047e510924890f1a55c559ff83ee8197",
+      "inputHash": "61786ae68ddd458e625a39f0d6992736599a1371b6e55ea65fb3757e90b5397c",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
@@ -314,7 +343,7 @@
           "url": "https://www.ntv.co.jp/q/articles/304cl5wcg18smpe47y6.html"
         }
       ],
-      "inputHash": "5006162ef8b6b8af5b715093d2ab151f37023cce8f9bb97eb76e19627a319933",
+      "inputHash": "8ef55660a3f45ca624f6b36fd5280f95052bdf0cbb3364cbde0102f6bd183d1d",
       "model": "gpt-6-sol",
       "status": "accepted",
       "reason": "openai_projects",
