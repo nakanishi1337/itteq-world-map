@@ -28,14 +28,15 @@ def report(decisions, warnings):
     lines = ['# 日テレ放送データの更新状況', '',
              f'放送日: 処理済み {accepted} / 保留 {len(decisions) - accepted}', '',
              '放送日ごとの予告・OAまとめ・番組表をAIで統合します。検証後にmainへ自動pushします。', '',
-             '| 放送日 | 状態 | 企画 | 国 | 理由 |', '|---|---|---|---|---|']
+             '| 放送日 | 状態 | 企画 | 国 | 処理結果 |', '|---|---|---|---|---|']
     for d in decisions:
+        result = {'openai_projects': '企画を取得', 'openai_empty': '取得できた企画なし'}.get(d['reason'], '取得保留: ' + d['reason'])
         for p in d['projects'] or [None]:
             title = p['project'].replace('|', '／').replace('\n', ' ') if p else '—'
             if p:
                 title = f"[{title}]({p['sourceUrls'][0]})"
             countries = (', '.join(p['countries']) or '—') if p else '—'
-            lines.append(f"| {d['date']} | {d['status']} | {title} | {countries} | {d['reason']} |")
+            lines.append(f"| {d['date']} | {d['status']} | {title} | {countries} | {result} |")
     if warnings:
         lines += ['## 取得上の注意', ''] + ['- ' + w for w in sorted(set(warnings))]
     return '\n'.join(lines) + '\n'
