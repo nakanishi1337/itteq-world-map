@@ -8,11 +8,32 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[2]
-BASELINE = 'e5652af28e6f81d8ab45a654207aa23933ff6f9888aff4e2047ad1778f5dcbcc'
+LEGACY_COUNT = 1376
+LEGACY_HASH = '59735f908923a56f9e29ac16aeb7305fbeafe74ff90b2a70baf894789a9ddf97'
 
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
+
+
+def split_episodes(episodes):
+    """The original ordered Wikipedia rows remain intact at the start of the shared file."""
+    if not isinstance(episodes, list) or digest(episodes[:LEGACY_COUNT]) != LEGACY_HASH:
+        raise ValueError('Wikipedia由来の既存データが変更されています')
+    additions = episodes[LEGACY_COUNT:]
+    if any(not isinstance(e, dict) or not e.get('projectId') for e in additions):
+        raise ValueError('追加データには企画IDが必要です')
+    return episodes[:LEGACY_COUNT], additions
+
+
+def restore_pending_episodes(current, pending, original):
+    """Three-way comparison of appended data, preserving the original Wikipedia records."""
+    legacy, current_additions = split_episodes(current)
+    _, pending_additions = split_episodes(pending)
+    _, original_additions = split_episodes(original)
+    if current_additions != original_additions and pending_additions != original_additions and current_additions != pending_additions:
+        raise ValueError('Visit data changed on both main and the pending PR')
+    return legacy + (current_additions if pending_additions == original_additions else pending_additions)
 
 
 def read_json(path, default=None):
@@ -34,7 +55,7 @@ def write_json(path, value):
             os.unlink(temp)
 
 
-def request(url, payload=None, key=None):
+def request(url, payload=None, key=None, timeout=30):
     headers = {'User-Agent': 'itteq-world-map/0.2'}
     if key:
         headers['Authorization'] = 'Bearer ' + key
@@ -44,7 +65,7 @@ def request(url, payload=None, key=None):
         data = json.dumps(payload, ensure_ascii=False).encode()
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=30) as r:
+            with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=timeout) as r:
                 return r.read().decode('utf-8')
         except urllib.error.HTTPError as error:
             if error.code not in (429, 500, 502, 503, 504, 529) or attempt == 2:

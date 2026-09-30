@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from ntv.common import read_json, write_json, split_episodes, restore_pending_episodes
 
 
 def gh(*args):
@@ -30,12 +31,25 @@ def main():
         # Restore only generated data files from the existing automation PR; use current main code.
         names = subprocess.check_output(['git','ls-tree','-r','--name-only','FETCH_HEAD'],text=True).splitlines()
         for name in names:
-            if name == 'src/data/episodes-ntv.json' or name.startswith('data/ntv/generated/'):
+            if name == 'src/data/episodes-ntv.json':
+                # Migration from an unmerged PR produced by the former split-file updater.
+                path = Path('src/data/episodes.json')
+                current = read_json(path)
+                legacy, _ = split_episodes(current)
+                pending = json.loads(subprocess.check_output(['git','show','FETCH_HEAD:'+name]))
+                original = subprocess.run(['git','show',base+':'+name],capture_output=True)
+                before = json.loads(original.stdout) if original.returncode == 0 else []
+                write_json(path, restore_pending_episodes(current, legacy + pending, legacy + before))
+                continue
+            if name == 'src/data/episodes.json' or name.startswith('data/ntv/generated/'):
                 path = Path(name)
                 pending = subprocess.check_output(['git','show','FETCH_HEAD:'+name])
                 original = subprocess.run(['git','show',base+':'+name],capture_output=True)
                 base_content = original.stdout if original.returncode == 0 else None
                 current = path.read_bytes() if path.exists() else None
+                if name == 'src/data/episodes.json':
+                    write_json(path, restore_pending_episodes(json.loads(current), json.loads(pending), json.loads(base_content)))
+                    continue
                 if current != base_content and pending != base_content and current != pending:
                     raise ValueError('Generated data changed on both main and the pending PR: ' + name)
                 if pending == base_content:

@@ -38,7 +38,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Collect and resolve
         env:
-          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python3 scripts/update-ntv.py
       - run: python3 scripts/update-ntv.py --validate-only
       - run: npm run lint
@@ -58,10 +58,11 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.NTV_PR_TOKEN || github.token }}
+          base: ${{ github.event.repository.default_branch }}
           branch: automation/ntv-data
           commit-message: 'data: update NTV broadcast records'
           title: '日テレ放送データの週次更新'
           body-path: data/ntv/generated/report.md
           add-paths: |
-            src/data/episodes-ntv.json
+            src/data/episodes.json
             data/ntv/generated/

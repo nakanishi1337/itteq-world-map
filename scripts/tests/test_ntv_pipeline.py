@@ -10,45 +10,32 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ntv.common import ROOT, digest, read_json, write_json
-from ntv.geography import candidates, heading_places, CITIES
-from ntv.jev import Jev, JevUnavailable, MODEL
-from ntv.pipeline import decide, judge, make_episodes, policy_hash
+from ntv.common import ROOT, LEGACY_COUNT, split_episodes, restore_pending_episodes, read_json, write_json
+from ntv.geography import heading_places, CITIES
+from ntv.openai import OpenAI, OpenAIUnavailable, output, validate
+from ntv.pipeline import decide, make_episodes
 from ntv.sources import cast, parse_schedule, previews, summaries, Text
 
 FIXTURES = Path(__file__).parent / 'fixtures'
-ARTICLES = read_json(FIXTURES / 'ntv-evaluation-articles.json')
+ARTICLES = read_json(FIXTURES / 'ntv-articles.json')
 ROWS = {r['id']: r for r in previews(ARTICLES)}
-
-
-def answer(value, choices, confidence=.99):
-    return {'choice': value, 'confidence': confidence,
-            'probabilities': {k: (1.0 if k == value else 0.0) for k in choices}}
-
-
-class FakeJev:
-    """Models the interface, not language understanding; live evaluation is separate."""
-    def __init__(self, visits=('FI',), low=False):
-        self.visits = visits
-        self.low = low
-        self.calls = 0
-
-    def ask(self, state, questions):
-        self.calls += 1
-        result = {}
-        for k, q in questions.items():
-            if k == 'kind': value = 'visit'
-            elif k == 'match': value = 'same'
-            elif k.startswith('country_'): value = 'visit' if k[8:] in self.visits else 'other'
-            elif k.startswith('evidence_'):
-                value = next((c for c in q['criteria'] if c != 'none'), 'none') if k[9:] in self.visits else 'none'
-            else: raise AssertionError(k)
-            result[k] = answer(value, q['criteria'], .3 if self.low else .99)
-        return result
 
 
 def row_start(prefix):
     return next(copy.deepcopy(r) for key, r in ROWS.items() if key.startswith(prefix))
+
+
+class FakeOpenAI:
+    """Tests processing and persistence, without pretending to verify country accuracy."""
+    def __init__(self, codes=('FI',), error=None):
+        self.codes, self.error, self.calls, self.docs = list(codes), error, 0, []
+
+    def countries(self, row, docs):
+        self.calls += 1
+        self.docs = docs
+        if self.error:
+            raise OpenAIUnavailable(self.error)
+        return self.codes
 
 
 class GeographyTests(unittest.TestCase):
@@ -56,22 +43,37 @@ class GeographyTests(unittest.TestCase):
         for place, code in [('ハワイ','US'),('アラスカ','US'),('ドバイ','AE'),('山梨','JP'),('北海道','JP'),('東京都','JP')]:
             self.assertEqual(heading_places('企画 in '+place)[0]['countryCode'], code)
 
-    def test_many_cities_and_ambiguity(self):
+    def test_city_dictionary_and_ambiguity(self):
         self.assertGreater(CITIES['cityCount'], 30000)
-        for place, code in [('ケアンズ','AU'),('フィレンツェ','IT'),('ヘルシンキ','FI'),('アンカレッジ','US')]:
-            self.assertIn(code, [r['countryCode'] for r in candidates(place)])
-        self.assertEqual(heading_places('企画 in バンクーバー'), [])
-        self.assertEqual(heading_places('企画 in ロンドン'), [])
-        self.assertTrue({'CA','US'}.issubset({r['countryCode'] for r in candidates('バンクーバー')}))
+        self.assertEqual(heading_places('企画 in ヘルシンキ')[0]['countryCode'], 'FI')
+        for place in ('バンクーバー', 'ロンドン', '未知島'):
+            self.assertEqual(heading_places('企画 in '+place), [])
 
     def test_complete_heading_only(self):
         self.assertEqual([p['countryCode'] for p in heading_places('企画 in フランス・オーストリア')], ['FR','AT'])
         for s in ['企画 in 未知島', '企画 in タイ・未知島', '企画 in タイで大冒険', '企画 in タイ・']:
             self.assertEqual(heading_places(s), [])
 
-    def test_substrings_not_countries(self):
-        for text, forbidden in [('タイム','TH'),('富士急ハイランド','IR'),('カリビアン','LY'),('日本テレビ','JP')]:
-            self.assertNotIn(forbidden, {r['countryCode'] for r in candidates(text)})
+
+class SharedDataTests(unittest.TestCase):
+    def test_legacy_preserved_and_changes_rejected(self):
+        data = read_json(ROOT / 'src/data/episodes.json')
+        legacy, additions = split_episodes(data)
+        self.assertEqual(len(legacy), LEGACY_COUNT)
+        self.assertTrue(all(e['projectId'] for e in additions))
+        changed = copy.deepcopy(data)
+        changed[0]['project'] += '変更'
+        with self.assertRaises(ValueError): split_episodes(changed)
+        with self.assertRaises(ValueError): split_episodes(data[1:])
+
+    def test_pending_pr_migration_and_conflict(self):
+        legacy, _ = split_episodes(read_json(ROOT / 'src/data/episodes.json'))
+        first = {'projectId': 'test:1', 'countryCode': 'FI'}
+        second = dict(first, countryCode='SE')
+        self.assertEqual(restore_pending_episodes(legacy, legacy + [first], legacy), legacy + [first])
+        self.assertEqual(restore_pending_episodes(legacy + [first], legacy + [first], legacy), legacy + [first])
+        with self.assertRaises(ValueError):
+            restore_pending_episodes(legacy + [second], legacy + [first], legacy)
 
 
 class SourceTests(unittest.TestCase):
@@ -90,133 +92,192 @@ class SourceTests(unittest.TestCase):
 
 
 class DecisionTests(unittest.TestCase):
-    def test_six_regressions_heading(self):
-        fake = FakeJev()
+    def test_static_headings_skip_api(self):
+        client = FakeOpenAI()
         for prefix, code in [('6719w74y1wf4vthg:2','VN'),('gdlmgvmkox3looo0:1','KR'),('gdlmgvmkox3looo0:2','JP')]:
-            d = decide(row_start(prefix), [], fake, False)
+            d = decide(row_start(prefix), [], client)
             self.assertEqual([c['countryCode'] for c in d['countries']], [code])
             self.assertEqual(d['status'],'accepted')
-        self.assertEqual(fake.calls, 0)
+        self.assertEqual(client.calls, 0)
 
-    def test_jev_evidence_and_gate(self):
+    def test_finland_candidate_material_in_single_call(self):
         row = row_start('xb8d5pluwyejoiic:')
-        docs = [d for d in summaries(ARTICLES) if d['date']==row['date']]
-        d = decide(row, docs, FakeJev(), True)
+        client = FakeOpenAI()
+        d = decide(row, summaries(ARTICLES), client)
         self.assertEqual(d['status'], 'accepted')
         self.assertEqual([c['countryCode'] for c in d['countries']], ['FI'])
-        self.assertIn('フィンランド', d['countries'][0]['evidence']['text'])
-        self.assertEqual(decide(row, docs, FakeJev(), False)['reason'], 'live_evaluation_not_passed')
-        self.assertEqual(decide(row, docs, FakeJev(low=True), True)['status'], 'pending')
-        self.assertEqual(decide(row, [], FakeJev(visits=()), True)['status'], 'pending')
+        self.assertEqual(client.calls, 1)
+        self.assertTrue(any('フィンランド' in doc['text'] for doc in client.docs))
+        self.assertTrue(all(doc.get('date', row['date']) == row['date'] for doc in client.docs))
+        self.assertTrue(any(doc['kind'] == 'summary' for doc in client.docs))
 
-    def test_past_and_neighbor_and_exhibit_exclusion_contract(self):
-        for prefix, expected in [('nrqxi8sr20r3i6nj:1','NL'),('oyk5obouu2jkjmf4:1','ZW'),('r5nu7sivq6100j2s:1','GB')]:
-            r = row_start(prefix)
-            d = decide(r, [], FakeJev(visits=(expected,)), True)
-            self.assertEqual([c['countryCode'] for c in d['countries']], [expected])
-            self.assertEqual(d['status'],'accepted')
+    def test_empty_is_processed_and_reused_without_artifact(self):
+        row = row_start('xb8d5pluwyejoiic:')
+        client = FakeOpenAI(codes=())
+        d = decide(row, [], client)
+        self.assertEqual(d['status'], 'accepted')
+        self.assertEqual(d['countries'], [])
+        self.assertEqual(decide(row, [], client, previous=d), d)
+        self.assertEqual(client.calls, 1)
 
-    def test_recap_and_missing_cast(self):
-        fake = FakeJev()
+    def test_changed_material_replaces_countries_failure_preserves_and_retries(self):
+        row = row_start('xb8d5pluwyejoiic:')
+        first = decide(row, [], FakeOpenAI(codes=('FR','CH','GB')))
+        episodes = make_episodes([first], [], {})
+        self.assertEqual(len(episodes), 3)
+        row['body'] += '\n新しい本文'
+        failed_client = FakeOpenAI(error='openai_http_429')
+        failure = decide(row, [], failed_client, previous=first)
+        self.assertEqual(make_episodes([failure], episodes, {}), episodes)
+        decide(row, [], failed_client, previous=failure)
+        self.assertEqual(failed_client.calls, 2)
+        replacement = decide(row, [], FakeOpenAI(codes=('FI',)), previous=failure)
+        self.assertEqual([e['countryCode'] for e in make_episodes([replacement], episodes, {})], ['FI'])
+        empty = decide(row, [], FakeOpenAI(codes=()), previous=failure)
+        self.assertEqual(make_episodes([empty], episodes, {}), [])
+
+    def test_new_supplement_triggers_refresh_and_sources_recorded(self):
+        row = row_start('xb8d5pluwyejoiic:')
+        client = FakeOpenAI()
+        previous = decide(row, [], client)
+        docs = summaries(ARTICLES)
+        latest = decide(row, docs, client, previous=previous)
+        self.assertEqual(client.calls, 2)
+        self.assertNotEqual(previous['inputHash'], latest['inputHash'])
+        sources = make_episodes([latest], [], {})[0]['sources']
+        self.assertGreater(len(sources), 1)
+        self.assertEqual(decide(row, list(reversed(docs)), client, previous=latest), latest)
+        self.assertEqual(client.calls, 2)
+
+    def test_recap_missing_cast_and_manual(self):
+        client = FakeOpenAI()
         row = row_start('xb8d5pluwyejoiic:')
         row['project'] = '真夏の爆笑アワード'
-        self.assertEqual(decide(row, [], fake, True)['status'], 'excluded')
+        self.assertEqual(decide(row, [], client)['status'], 'excluded')
         row['performers'] = []
-        self.assertEqual(decide(row, [], fake, True)['status'], 'pending')
-        self.assertEqual(fake.calls, 0)
+        self.assertEqual(decide(row, [], client)['status'], 'pending')
+        self.assertEqual(client.calls, 0)
+        row = row_start('xb8d5pluwyejoiic:')
+        d = decide(row, [], client, {'status':'accepted','countries':['FI'],'evidence':{'text':'フィンランド','url':row['source']}})
+        self.assertEqual(d['method'], 'manual')
+        self.assertEqual(client.calls, 0)
 
-    def test_all_cast_each_country_and_preserve_on_failure(self):
+    def test_all_cast_each_country_and_preserve_missing_source(self):
         row = row_start('6719w74y1wf4vthg:1')
         row['performers'] = ['A','B']
-        d = decide(row, [], FakeJev(), False)
+        d = decide(row, [], FakeOpenAI())
         episodes = make_episodes([d], [], {})
         self.assertEqual(len(episodes),2)
         self.assertTrue(all(e['performers']==['A','B'] for e in episodes))
-        self.assertEqual(make_episodes([d], episodes, {}), episodes)
-        self.assertEqual(make_episodes([dict(d,status='pending')], episodes, {}), episodes)
         self.assertEqual(make_episodes([], episodes, {}), episodes)
-        self.assertEqual(make_episodes([dict(d,status='excluded')], episodes, {d['id']:{'status':'excluded'}}), [])
-
-    def test_manual_override(self):
-        row = row_start('xb8d5pluwyejoiic:')
-        d = decide(row, [], FakeJev(), False, {'status':'accepted','countries':['FI'],'evidence':{'text':'フィンランド','url':row['source']}})
-        self.assertEqual(d['status'], 'accepted')
-        self.assertEqual(d['method'], 'manual')
+        self.assertEqual(make_episodes([dict(d,status='excluded')], episodes, {}), [])
 
 
 class ApiTests(unittest.TestCase):
-    def test_cache_limits_missing_key_and_validation(self):
-        questions = {'match': {'type':'choice','instructions':'test','criteria':{'yes':None,'no':None}}}
-        response = {'model':MODEL,'answers':{'match':answer('yes',questions['match']['criteria'])},'usage':{'input_tokens':1}}
+    def test_cache_structured_request_and_offline(self):
+        response = {'status':'completed','output':[{'content':[{'type':'output_text','text':'{"countries":["FI","FI"]}'}]}], 'usage':{'input_tokens':1}}
+        row = row_start('xb8d5pluwyejoiic:')
         with tempfile.TemporaryDirectory() as temp:
-            client = Jev(Path(temp))
-            with patch.dict(os.environ, {'TYPESAFE_API_KEY':'test'}), patch('ntv.jev.request', return_value=json.dumps(response)) as req:
-                self.assertEqual(client.ask('text',questions),response['answers'])
-                client.ask('text',questions)
+            client = OpenAI(Path(temp))
+            with patch.dict(os.environ, {'OPENAI_API_KEY':'test'}), patch('ntv.openai.request', return_value=json.dumps(response)) as req:
+                self.assertEqual(client.countries(row, []), ['FI'])
+                payload = req.call_args.args[1]
+                self.assertTrue(payload['text']['format']['strict'])
+                self.assertFalse(payload['store'])
+                client.countries(row, [])
                 self.assertEqual(req.call_count,1)
                 self.assertEqual(client.hits,1)
-                client.limit=1
-                with self.assertRaises(JevUnavailable): client.ask('new',questions)
-            with patch.dict(os.environ, {}, clear=True):
-                with self.assertRaises(JevUnavailable): client.ask('new',questions)
-            broken=copy.deepcopy(response); broken['answers']['match']['choice']='invented'
-            with self.assertRaises(JevUnavailable): Jev.validate(broken, questions)
+            offline = OpenAI(Path(temp), offline=True)
+            with patch('ntv.openai.request', side_effect=AssertionError('offline network')):
+                self.assertEqual(offline.countries(row, []), ['FI'])
+                with self.assertRaisesRegex(OpenAIUnavailable,'offline_cache_miss'):
+                    offline.countries(row, [{'text':'new'}])
 
-
-class CommandTests(unittest.TestCase):
-    def test_offline_idempotency_and_failure_preserves_outputs(self):
+    def test_failures_not_cached_and_no_key(self):
+        row = row_start('xb8d5pluwyejoiic:')
         with tempfile.TemporaryDirectory() as temp:
-            folder=Path(temp); output=folder/'out'; cache=folder/'cache'
-            cmd=[sys.executable,str(ROOT/'scripts/update-ntv.py'),'--input',str(FIXTURES/'ntv-evaluation-articles.json'),'--offline','--since','2026-01-01','--today','2026-09-29','--output-dir',str(output),'--cache-dir',str(cache)]
-            env={k:v for k,v in os.environ.items() if k!='TYPESAFE_API_KEY'}
-            subprocess.run(cmd,check=True,capture_output=True,env=env)
-            first={p.name:p.read_bytes() for p in output.iterdir()}
-            subprocess.run(cmd,check=True,capture_output=True,env=env)
-            self.assertEqual(first,{p.name:p.read_bytes() for p in output.iterdir()})
-            bad=folder/'bad.json'; bad.write_text('[]')
-            cmd[cmd.index('--input')+1]=str(bad)
-            self.assertNotEqual(subprocess.run(cmd,capture_output=True,env=env).returncode,0)
-            self.assertEqual(first,{p.name:p.read_bytes() for p in output.iterdir()})
+            client = OpenAI(Path(temp))
+            with patch.dict(os.environ, {}, clear=True):
+                with self.assertRaisesRegex(OpenAIUnavailable, 'openai_api_key_missing'):
+                    client.countries(row, [])
+            with patch.dict(os.environ, {'OPENAI_API_KEY':'test'}), patch('ntv.openai.request', return_value='{"status":"incomplete"}') as req:
+                for _ in range(2):
+                    with self.assertRaises(OpenAIUnavailable): client.countries(row, [])
+                self.assertEqual(req.call_count, 2)
+                self.assertEqual(list(Path(temp).glob('*.json')), [])
 
+    def test_shape_codes_refusal_and_incomplete(self):
+        for value in ({'countries':['ZZ']}, {'countries':'FI'}, {'countries':[1]}, {'countries':['FI'],'extra':1}, []):
+            with self.assertRaises(OpenAIUnavailable): validate(value)
+        for response in ({'status':'incomplete'}, {'status':'completed','output':[{'content':[{'type':'refusal'}]}]}):
+            with self.assertRaises(OpenAIUnavailable): output(response)
 
-class FailureAndIdentityTests(unittest.TestCase):
     def test_retry_policy(self):
         import urllib.error
         from ntv.common import request
-        error = urllib.error.HTTPError('https://example.test', 529, 'Overloaded', {}, None)
+        error = urllib.error.HTTPError('https://example.test', 429, 'Rate limited', {}, None)
         with patch('ntv.common.urllib.request.urlopen', side_effect=error) as call, patch('ntv.common.time.sleep'):
             with self.assertRaises(urllib.error.HTTPError): request('https://example.test')
             self.assertEqual(call.call_count, 3)
-        error = urllib.error.HTTPError('https://example.test', 401, 'Unauthorized', {}, None)
-        with patch('ntv.common.urllib.request.urlopen', side_effect=error) as call:
-            with self.assertRaises(urllib.error.HTTPError): request('https://example.test')
-            self.assertEqual(call.call_count, 1)
+
+
+class CommandTests(unittest.TestCase):
+    def test_updater_persists_answers_and_only_refreshes_changed_material(self):
+        spec = importlib.util.spec_from_file_location('updater', ROOT / 'scripts/update-ntv.py')
+        updater = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(updater)
+        with tempfile.TemporaryDirectory() as temp:
+            folder = Path(temp)
+            source = folder / 'articles.json'
+            article = copy.deepcopy(next(a for a in ARTICLES if a['item_id'] == 'xb8d5pluwyejoiic'))
+            write_json(source, [article])
+            args = ['update-ntv', '--input', str(source), '--since', '2026-01-01',
+                    '--today', '2026-09-30', '--output-dir', str(folder / 'out'), '--cache-dir', str(folder / 'cache')]
+            with patch('sys.argv', args), patch.object(updater, 'schedules', return_value=[]), patch('ntv.openai.OpenAI.countries', return_value=['FI']) as api, patch('builtins.print'):
+                updater.main()
+                self.assertEqual(api.call_count, 1)
+                updater.main()
+                self.assertEqual(api.call_count, 1)
+                article['data']['body'] += '<p>追記</p>'
+                write_json(source, [article])
+                api.return_value = ['SE']
+                updater.main()
+                self.assertEqual(api.call_count, 2)
+                self.assertEqual([e['countryCode'] for e in read_json(folder / 'out/episodes.json')[LEGACY_COUNT:]], ['SE'])
+                updater.main()
+                self.assertEqual(api.call_count, 2)
+
+    def test_offline_idempotency_and_failure_preserves_outputs(self):
+        with tempfile.TemporaryDirectory() as temp:
+            folder=Path(temp); output_dir=folder/'out'; cache=folder/'cache'
+            cmd=[sys.executable,str(ROOT/'scripts/update-ntv.py'),'--input',str(FIXTURES/'ntv-articles.json'),'--offline','--since','2026-01-01','--today','2026-09-29','--output-dir',str(output_dir),'--cache-dir',str(cache)]
+            subprocess.run(cmd,check=True,capture_output=True)
+            first={p.name:p.read_bytes() for p in output_dir.iterdir()}
+            subprocess.run(cmd,check=True,capture_output=True)
+            self.assertEqual(first,{p.name:p.read_bytes() for p in output_dir.iterdir()})
+            bad=folder/'bad.json'; bad.write_text('[]')
+            cmd[cmd.index('--input')+1]=str(bad)
+            self.assertNotEqual(subprocess.run(cmd,capture_output=True).returncode,0)
+            self.assertEqual(first,{p.name:p.read_bytes() for p in output_dir.iterdir()})
 
     def test_reorder_hold_future_and_prior_preservation(self):
         with tempfile.TemporaryDirectory() as temp:
-            folder=Path(temp); output=folder/'out'; source=folder/'articles.json'
+            folder=Path(temp); output_dir=folder/'out'; source=folder/'articles.json'
             original=copy.deepcopy(next(a for a in ARTICLES if a['item_id']=='6719w74y1wf4vthg'))
             write_json(source, [original])
-            cmd=[sys.executable,str(ROOT/'scripts/update-ntv.py'),'--input',str(source),'--offline','--since','2026-01-01','--today','2026-01-17','--output-dir',str(output),'--cache-dir',str(folder/'cache')]
-            env={k:v for k,v in os.environ.items() if k!='TYPESAFE_API_KEY'}
-            subprocess.run(cmd,check=True,capture_output=True,env=env)
-            self.assertEqual(read_json(output/'episodes-ntv.json'), [])
+            cmd=[sys.executable,str(ROOT/'scripts/update-ntv.py'),'--input',str(source),'--offline','--since','2026-01-01','--today','2026-01-17','--output-dir',str(output_dir),'--cache-dir',str(folder/'cache')]
+            subprocess.run(cmd,check=True,capture_output=True)
+            self.assertEqual(read_json(output_dir/'episodes.json'), read_json(ROOT/'src/data/episodes.json')[:LEGACY_COUNT])
             cmd[cmd.index('--today')+1]='2026-01-19'
-            subprocess.run(cmd,check=True,capture_output=True,env=env)
-            first=read_json(output/'episodes-ntv.json')
-            self.assertEqual(len(first),3)
+            subprocess.run(cmd,check=True,capture_output=True)
+            first=read_json(output_dir/'episodes.json')
+            self.assertEqual(len(first),LEGACY_COUNT + 3)
             original['data']['body']=original['data']['body'].replace('ロッチ中岡のQtube','中岡の変更企画')
             write_json(source,[original])
             for _ in range(2):
-                subprocess.run(cmd,check=True,capture_output=True,env=env)
-                self.assertEqual(read_json(output/'episodes-ntv.json'),first)
-                self.assertTrue(all(d['reason']=='article_structure_changed' for d in read_json(output/'decisions.json')['projects']))
-
-    def test_no_key_evaluation_is_explicitly_unverified(self):
-        env={k:v for k,v in os.environ.items() if k!='TYPESAFE_API_KEY'}
-        result=subprocess.run([sys.executable,str(ROOT/'scripts/evaluate-ntv.py')],capture_output=True,text=True,env=env)
-        self.assertEqual(result.returncode,2)
-        self.assertIn('UNVERIFIED',result.stderr)
+                subprocess.run(cmd,check=True,capture_output=True)
+                self.assertEqual(read_json(output_dir/'episodes.json'),first)
+                self.assertTrue(all(d['reason']=='article_structure_changed' for d in read_json(output_dir/'decisions.json')['projects']))
 
 
 if __name__ == '__main__':

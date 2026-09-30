@@ -1,134 +1,74 @@
 # 日テレ放送データの運用
 
-既存の `src/data/episodes.json` は固定し、更新候補は `src/data/episodes-ntv.json` に保存します。
-出演者と訪問国は**企画単位**です。日テレの企画欄の出演者全員を、その企画で採用した各国に紐付けます。
-個々の出演者が全ての国へ実際に行ったことを確認したデータではありません。
+`src/data/episodes.json` にWikipedia由来の元の1,376件と、2026-07-27以降の追加分をまとめて保存します。更新スクリプトは元の行の内容・順序をハッシュで確認し、その後ろに追加データを追記します。追加行の企画ID（`projectId`）で更新対象を識別します。
+出演者は予告の企画欄から取得し、その企画の各国に同じ一覧を紐付けます。個々の出演者と訪問国の対応を表すものではありません。
 
 ## 実行
 
-Python 3.10以上・標準ライブラリのみを使用します。
+Python 3.10以上の標準ライブラリのみを使います。環境変数 `OPENAI_API_KEY` にAPIキーを設定します。キーはファイルやログに保存しません。
 
 ```bash
-# 2026-07-27以降を処理。元のWikipediaデータは変更しません。
 python3 scripts/update-ntv.py
-# 検証用の別ディレクトリへ出力
+# リポジトリのデータを変更せず検証
 python3 scripts/update-ntv.py --output-dir /tmp/ntv-review
-# 保存済み資料で再現（APIキーがあればJevの呼び出しは行います）
+# 通信なしで再現。未保存のAPI回答は保留となります。
 python3 scripts/update-ntv.py --input .cache/ntv/articles.json --offline --output-dir /tmp/ntv-review
-# 日付境界も固定して再現
-python3 scripts/update-ntv.py --input .cache/ntv/articles.json --offline --today 2026-09-29 --output-dir /tmp/ntv-review
+python3 scripts/update-ntv.py --validate-only
 python3 -m unittest discover -s scripts/tests -v
 ```
 
-`--offline` は記事取得を止めるオプションです。完全にネットワークを使わない検証では
-`TYPESAFE_API_KEY` を設定せずに実行してください。保存済みのJev応答があれば再利用します。
-`--since` は初回・追加取得の対象を制限し、過去の確定記録を削除しません。
+`--today` で日付境界を固定できます。未来の放送は公開せず、対象期間外や取得できなくなった企画の既存データも保持します。
 
-## 判定の順序
+## 資料の特定と国の取得
 
-1. 企画名の総集編・アワード表記は新しい訪問として除外。
-2. 見出し末尾の `in 地名` が**全て**一意に解釈できれば辞書で確定。
-3. それ以外は日テレの本文、同日のOAまとめ、保存済みの日本海テレビ番組表を候補にする。
-4. OAまとめは正規化した企画名で対応付け。異なる表記はJevで同じ企画か判定する。
-5. Jevが地名候補ごとに今回の訪問かを判断し、入力行から根拠を選ぶ。
-6. confidence 0.90以上で根拠があり、残る候補にも未解決がなければ採用候補。
-   記事間の矛盾・API障害・未知地名・予告欠落などは保留。
+1. [日テレの記事JSON](https://www.ntv.co.jp/q/articles.json)から `○月○日の「イッテQ」は` という予告タイトルを選び、HTMLの見出しで企画を分割します。放送日・企画名・出演者・本文・URLはAIを使わず取得します。
+2. 総集編・アワード等の見出しは除外します。日付・出演者が欠けた企画は保留します。
+3. 見出し末尾の `in 地名` が全て一意に解釈できれば辞書で国を取得します。本文だけにある追加の訪問先は、この経路では補完しません。
+4. 見出しで取得できなければ、予告本文と同日の参考資料候補をOpenAIに一度だけ送ります。参考資料は、`OAまとめ` タグの記事、[日本海テレビ番組表](https://www.nkt-tv.co.jp/program/)のイッテQ詳細リンク、保存済み番組表、手動追加資料です。番組表は番組名・放送日・夕方以降の時間帯・再放送でないことを検査します。
+5. OAまとめは公開日が放送日と同じ記事を候補にします。**公開日は放送日や対象企画との一致を保証しません。** 入力には候補であることを示し、別企画の資料を使わないよう指示します。公開が遅れた記事は自動対応できないため、`references.json` で放送日・企画IDを指定できます。過去の番組表の取得も保証しません。
+6. OpenAI Responses API（`gpt-6-sol`）が `{"countries":["FI"]}` のJSONを返します。都市・地域の国への変換と対象企画との対応もこの呼び出しで判断します。応答の意味は信頼し、独自の正解ラベルやconfidenceによる採用条件は設けません。JSONの構造・国コード、不完全応答・拒否だけを検査します。
 
-見出し優先のため、見出しで確定した企画の本文にしかない追加訪問先は補完しません。
-同日の別企画の国を混ぜないよう、対象企画を指定して判定します。
-公開日だけで記事の対応を確定しません。未来の放送日は資料を保存しても公開しません。
-予告そのものがない放送は出演者を推測せず、`missingPreviews` に報告します。
+## 差分更新
 
-## 都市・地域の辞書
+- `generated/decisions.json` に入力資料・判定・入力ハッシュを保存します。同じ入力の処理済み企画は、APIキャッシュがなくても再照会しません。
+- 新規企画・本文の変更・参考資料の追加や変更・判定方針の変更は再処理します。
+- 正常な空配列も処理済みです。資料が変わるまで再照会しません。
+- 再処理に成功した場合は、企画の国リスト全体を置き換えます。以前の国だけを残すことはありません。
+- APIエラーは保留として記録し、以前の訪問記録を保持して次回再試行します。エラー応答はキャッシュしません。
+- 記事内の企画追加・削除・順序や見出し変更によって企画IDの意味が変わる場合は、`article_structure_changed` で保留します。
+- API回答は `.cache/ntv/openai/`、使用回数・使用量は `.cache/ntv/run.json` に保存します。429・一時的な5xx・通信失敗は最大3試行、APIの各試行は90秒でタイムアウトします。
 
-- `places.json`: 国、都道府県、ハワイ・アラスカなどの地域とコードの対応。
-- `cities.json`: GeoNamesの人口15,000人以上の都市・首都のスナップショット。
-  取り込んだ版は34,148都市、48,950表記。都市の基本名・ASCII名・かなを含む別名、
-  日本国内の漢字名を収録します。言語ラベル付きの日本語辞書ではありません。
-- 同名の英語都市名を持つ別都市の国候補も共有し、ロンドンやバンクーバーなどを
-  特定の国に決め打ちしません。保守的な処理のため、フィレンツェなど日本語では
-  区別される名前でも複数国候補となる場合があります。
-- 全都市・集落・島を網羅するものではありません。未知の見出し地名は原文を残して保留。
-  本文にある辞書未収録地名の網羅的な検出は保証しません。
+## 辞書と手動訂正
 
-更新は次のコマンドで行い、通常のコードPRとして内容を確認します。週次CIでは更新しません。
+`places.json` は国・地域・都道府県、`cities.json` はGeoNames由来の都市・別名を保持します。ハワイ・アラスカはUS、ドバイはAEです。同名都市の国が複数あれば辞書で決めずOpenAIへ送ります。未収録の都市名もOpenAIの対象です。
 
-```bash
-python3 scripts/import-geonames.py
-# 同じ入力ZIPで完全に再現する場合
-python3 scripts/import-geonames.py --zip /path/to/cities15000.zip
-```
+辞書の更新は `python3 scripts/import-geonames.py` で行い、週次処理では更新しません。
+出典: [GeoNames](https://www.geonames.org/)、[cities15000.zip](https://download.geonames.org/export/dump/cities15000.zip)。ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。元ZIPのハッシュ、表記の選別・同名都市の国候補統合をJSONに記録しています。
 
-出典: [GeoNames](https://www.geonames.org/)、[cities15000.zip](https://download.geonames.org/export/dump/cities15000.zip)。
-ライセンス: [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)。
-地名の抽出・表記の選別・同名都市の国候補統合を行っています。元ZIPのSHA-256はJSONに記録します。
-
-## Jevの評価と有効化
-
-モデルは `jev-1.13.0` に固定。APIキーは環境変数 `TYPESAFE_API_KEY` に設定します。
-キーをリポジトリやJSONへ保存しないでください。
-
-```bash
-# 実APIで評価。合格時のみ証明を更新し、週次処理でJevの採用を有効化
-python3 scripts/evaluate-ntv.py --certify
-```
-
-2026年44企画を開発用、2025年11企画を別の確認用データとし、
-`ntv-gold.json` に資料で確認できる国を記録しています。
-ラベルの対象資料は予告本文です。フィンランドの例だけは明示的にOAまとめと番組表も
-評価入力に含めます。実際の全訪問先を網羅した正解データとは区別してください。
-単体テストの偽APIは入出力と制御を検証するもので、Jevの日本語理解の検証ではありません。
-
-評価は適合率・再現率・保留率・API使用量を出力します。誤採用ゼロ、フィンランドの
-補完成功、Jevによる採用があることを合格条件とします。
-APIキー未設定は終了コード2（未検証）、基準未達は1。未検証時に合格を捏造しません。
-`evaluation.json` をマージしてから週次更新を有効化してください。
-判定コード・辞書・モデル・プロンプトを変更すると証明のハッシュが一致しなくなるため、
-再評価が必要です。confidenceは正答率ではありません。
-
-## 手動補完・訂正
-
-`references.json` は配列です。日本海テレビの詳細URLなら本文を取得できます。
-過去の番組表一覧がなくても、既知の詳細URLで参照できます。
+`references.json` に資料を追加できます。番組表詳細URLだけなら自動取得し、OAまとめ等を追加する場合は `text` を指定します。
 
 ```json
 [{"date":"2026-02-15","projectId":"xb8d5pluwyejoiic:1","url":"https://www.nkt-tv.co.jp/program/detail.php?date=260215&no=22"}]
 ```
 
-他のサイトの記事は自動収集せず、同じ形式に `text` を加えて対象企画の根拠を明示します。
-日テレのOAまとめは通常自動収集されます。
-
-`overrides.json` は企画IDをキーとしたオブジェクトです。
+`overrides.json` は企画IDをキーにした手動訂正です。
 
 ```json
 {
   "xb8d5pluwyejoiic:1": {
-    "status": "accepted",
-    "countries": ["FI"],
-    "evidence": {"text":"根拠となる記述", "url":"https://www.ntv.co.jp/q/articles/304vz64ropvjndaqetd.html"}
+    "status":"accepted",
+    "countries":["FI"],
+    "evidence":{"text":"根拠となる記述","url":"https://www.ntv.co.jp/q/articles/304vz64ropvjndaqetd.html"}
   }
 }
 ```
 
-`status: pending` で保留、`status: excluded` で明示的に削除できます。
-記事の並び替え・見出しの変更は `article_structure_changed` として止めます。
-対応を確認して同じIDを再利用する場合は、その手動設定に `allowIdentityChange: true` を
-指定し、`accepted` の国と根拠も登録します。IDが変わった場合は旧IDをexcluded、新IDをacceptedにします。
-欠落記事や再判定失敗だけでは、以前の確定値を消しません。
+`status: pending` は保留、`status: excluded` は削除です。記事の構造変更後に同じIDを再利用する場合は、対応を確認して `allowIdentityChange: true` と国・根拠を指定します。
 
 ## GitHub Actions
 
-- 日曜23:00 JSTと手動実行。初回から2026-07-27以降の新規・変更・保留を検査。
-- Secretsへ `TYPESAFE_API_KEY` を登録。Settings → Actions → Generalで
-  ワークフローによるPR作成を許可します。
-- `automation/ntv-data` ブランチの確認用PRを作成・更新。自動マージしません。
-- 通常は `GITHUB_TOKEN` を利用します。このトークンが作るPRでは別のPRワークフローは
-  自動起動しないため、作成前に本ワークフロー内でテスト・lint・buildを実行します。
-  PR側の必須チェックを別途起動する必要がある場合は、限定権限の `NTV_PR_TOKEN` を設定します。
-- 既存の更新PRの生成データを復元し、最新mainのコードで再計算します。
-  mainと未マージPRの双方で同じ生成ファイルが変わった場合は停止し、勝手に上書きしません。
-- API応答・取得資料は90日保持のartifactに保存。採用根拠は生成JSONに残します。
-  `.cache/ntv/run.json` とActionsのSummaryにAPI回数・使用量を記録します。
-- 1実行200回までのJev評価呼び出し。通信は30秒timeout、最大3試行。
-  429・529・一時的な5xxは再試行。上限や障害は対象企画の保留として報告します。
-- 初回のコミット・push・Actionsの有効化・Secrets登録はこの実装には含めていません。
+日曜23:00 JSTと手動実行で、`automation/ntv-data` ブランチの確認用PRを作成・更新します。自動マージはしません。Secretsの `OPENAI_API_KEY` と、Settings → Actions → GeneralのPR作成許可を使います。
+
+未マージのデータPRと前回成功時の資料・APIキャッシュを復元します。旧形式の別ファイルにある追加データも共通ファイルへ移行します。mainとデータPRの双方で同じ生成ファイルが変わった場合は停止します。処理済み判定はPRに保存するため、90日保持のキャッシュartifactが失効しても再照会を防げます。
+
+テスト・データ検証・lint・buildが通った後にPRを作成します。通常は `GITHUB_TOKEN` を使います。PRの別ワークフローも起動する場合は限定権限の `NTV_PR_TOKEN` を設定します。ActionsのSummaryと生成レポートで、保留理由・資料URL・API回数を確認できます。

@@ -2,7 +2,7 @@
 
 「世界の果てまでイッテQ!」で訪れたことのある国を、世界地図上で色付き表示する静的Webサイトです。
 
-現在はMVPとして、Wikipediaの放送リストから取得した訪問国を表示しています。データは確認できた範囲で段階的に補正・追加する方針です。
+Wikipediaの放送リストから取得した訪問国に、公式予告・番組表・OAまとめから取得した新しい訪問データを追加して表示します。
 
 ## 公開サイト
 
@@ -26,7 +26,7 @@ npm run dev
 Wikipediaの「放送リスト」からデータを再生成する場合は次を実行します。
 
 ```bash
-python3 scripts/collect-data.py
+python3 scripts/collect-data.py --output /tmp/wikipedia-episodes.json
 ```
 
 取得元の記載内容や表記揺れを含むため、実際の訪問履歴の完全性・正確性を保証するものではありません。
@@ -87,13 +87,15 @@ python3 -m unittest discover -s scripts/tests -v
 - 既存 `src/data/episodes.json` は変更なし（SHA-256:
   `e5652af28e6f81d8ab45a654207aa23933ff6f9888aff4e2047ad1778f5dcbcc`）。
 
-## 複数記事・Jevによる週次更新
+## 公式資料とOpenAIによる週次更新
 
-`python3 scripts/update-ntv.py` で日テレ予告・OAまとめ・番組表から更新候補を作成します。
-企画見出しで確定できる地名は辞書で処理し、それ以外はJevで判断します。
-国・都道府県に加え、GeoNames由来の都市名・別名にも対応しています。
+`python3 scripts/update-ntv.py` で予告を静的に取得します。
+企画見出しの地名で国を取得できない場合は、予告本文・同日の番組表・OAまとめを
+OpenAI APIへ送り、国コードのJSONを取得します。都市・地域表記にも対応します。
 
-既存データは固定し、追加分は `src/data/episodes-ntv.json` に分離します。
-Jevの実API評価が合格するまで、その判定は公開候補へ入れません。
-日曜23時JSTに確認用PRを作成するGitHub Actionsを同梱しています。
-設定、実API評価、辞書更新、手動訂正は [運用手順](data/ntv/README.md) を参照してください。
+追加分も `src/data/episodes.json` に追記し、アプリと週次更新が同じファイルを使います。
+Wikipedia由来の元の1,376件は内容と順序を保持します。
+処理済みの資料は再照会せず、変更時には企画の国リストを置き換えます。
+API失敗時は既存の記録を保持し、次回に再試行します。
+日曜23時JSTのGitHub Actionsで確認用PRを作成・更新します。
+設定・資料の対応付け・手動訂正は [運用手順](data/ntv/README.md) を参照してください。

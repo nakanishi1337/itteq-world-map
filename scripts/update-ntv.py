@@ -7,9 +7,10 @@ import json
 from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
-from ntv.common import ROOT, BASELINE, digest, read_json, write_json, request
-from ntv.jev import Jev
-from ntv.pipeline import decide, make_episodes, policy_hash
+from ntv.common import ROOT, split_episodes, digest, read_json, write_json, request
+from ntv.openai import OpenAI
+from ntv.geography import PLACES
+from ntv.pipeline import decide, make_episodes
 from ntv.sources import NTV, previews, summaries, schedules, project_key
 
 
@@ -18,7 +19,7 @@ def validate(episodes):
     for e in episodes:
         dt.date.fromisoformat(e['date'])
         key = (e['projectId'], e['countryCode'])
-        if key in seen or not e['performers'] or not e['project'] or not e['source'].startswith('https://www.ntv.co.jp/q/articles/'):
+        if e['countryCode'] not in PLACES['names'] or key in seen or not e['performers'] or not e['project'] or not e['source'].startswith('https://www.ntv.co.jp/q/articles/'):
             raise ValueError('Invalid or duplicate NTV episode')
         seen.add(key)
 
@@ -27,7 +28,7 @@ def report(decisions, gaps, warnings):
     counts = {s: sum(d['status'] == s for d in decisions) for s in ('accepted', 'pending', 'excluded')}
     lines = ['# 日テレ放送データの更新候補', '',
              f"企画: 採用 {counts['accepted']} / 保留 {counts['pending']} / 除外 {counts['excluded']}",
-             f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / Jev確定 {sum(d['status']=='accepted' and d['method']=='jev' for d in decisions)}", '',
+             f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / OpenAI確定 {sum(d['status']=='accepted' and d['method']=='openai' for d in decisions)}", '',
              '出演者は日テレの企画欄を使用し、採用した各国に全員を紐付けます。', '',
              '| 放送日 | 企画 | 判定 | 国 | 根拠・保留理由 |', '|---|---|---|---|---|']
     for d in decisions:
@@ -50,17 +51,18 @@ def main():
     p.add_argument('--today', type=dt.date.fromisoformat, default=dt.datetime.now(ZoneInfo('Asia/Tokyo')).date())
     p.add_argument('--cache-dir', type=Path, default=ROOT / '.cache/ntv')
     p.add_argument('--output-dir', type=Path, help='検証用出力先。省略時はリポジトリの更新候補を生成')
-    p.add_argument('--offline', action='store_true', help='--input必須。番組表はキャッシュ・手動根拠のみ')
+    p.add_argument('--offline', action='store_true', help='--input必須。通信せず、番組表・OpenAI回答は保存済み資料のみ')
     p.add_argument('--validate-only', action='store_true')
     args = p.parse_args()
     baseline = ROOT / 'src/data/episodes.json'
-    if hashlib.sha256(baseline.read_bytes()).hexdigest() != BASELINE:
-        raise ValueError('Wikipedia由来データのハッシュが変更されています')
+    initial_hash = hashlib.sha256(baseline.read_bytes()).hexdigest()
+    legacy, _ = split_episodes(read_json(baseline))
     dest = args.output_dir or ROOT / 'data/ntv/generated'
-    episode_path = (dest / 'episodes-ntv.json') if args.output_dir else ROOT / 'src/data/episodes-ntv.json'
+    episode_path = (dest / 'episodes.json') if args.output_dir else baseline
     if args.validate_only:
-        validate(read_json(episode_path, []))
-        print('Data validation passed; legacy hash unchanged')
+        _, additions = split_episodes(read_json(episode_path))
+        validate(additions)
+        print('Data validation passed; original Wikipedia rows unchanged')
         return 0
     if args.offline and not args.input:
         p.error('--offline requires --input')
@@ -82,11 +84,10 @@ def main():
                          'kind': 'manual', 'title': '手動追加の参考資料', 'text': ref['text'], 'url': ref['url']})
     old_manifest = read_json(dest / 'decisions.json', {'projects': []})
     old = {d['id']: d for d in old_manifest['projects']}
-    previous = read_json(episode_path, [])
+    _, previous = split_episodes(read_json(episode_path, legacy))
     overrides = read_json(ROOT / 'data/ntv/overrides.json', {})
-    evaluation = read_json(ROOT / 'data/ntv/evaluation.json', {})
-    gate = evaluation.get('passed') is True and evaluation.get('policyHash') == policy_hash()
-    jev = Jev(args.cache_dir / 'jev')
+    client = OpenAI(args.cache_dir / 'openai', offline=args.offline)
+    reused = 0
     decisions, current_ids = [], set()
     eligible = [r for r in rows if r['date'] is None or args.since.isoformat() <= r['date'] <= args.today.isoformat()]
     # Detect reorder/removal/addition in articles seen in an earlier snapshot.
@@ -108,7 +109,9 @@ def main():
             if key in old:
                 d['project'] = old[key]['project']
         else:
-            d = decide(row, docs, jev, gate, manual)
+            d = decide(row, docs, client, manual, old.get(key))
+            if old.get(key) == d and d['status'] in ('accepted', 'excluded'):
+                reused += 1
         decisions.append(d)
     for key, d in old.items():
         if key not in current_ids:
@@ -119,17 +122,17 @@ def main():
     gaps = sorted([d for d in docs if d['date'] not in known_dates and args.since.isoformat() <= d['date'] <= args.today.isoformat()], key=lambda d: (d['date'], d['url']))
     episodes = make_episodes(decisions, previous, overrides)
     validate(episodes)
-    if hashlib.sha256(baseline.read_bytes()).hexdigest() != BASELINE:
+    if hashlib.sha256(baseline.read_bytes()).hexdigest() != initial_hash:
         raise ValueError('既存データが実行中に変更されました')
-    manifest = {'schemaVersion': 1, 'projects': decisions, 'missingPreviews': gaps}
+    manifest = {'schemaVersion': 2, 'projects': decisions, 'missingPreviews': gaps}
     markdown = report(decisions, gaps, warnings)
     # Prepare all data before replacing output files. A failed CI never publishes a PR.
-    write_json(episode_path, episodes)
+    write_json(episode_path, legacy + episodes)
     write_json(dest / 'decisions.json', manifest)
     dest.mkdir(parents=True, exist_ok=True)
     (dest / 'report.md').write_text(markdown)
-    stats = {'apiRequests': jev.calls, 'cacheHits': jev.hits, 'usage': jev.usage, 'evaluationPassed': gate,
-             'episodeRecords': len(episodes), 'projects': len(decisions), 'warnings': warnings}
+    stats = {'apiRequests': client.calls, 'cacheHits': client.hits, 'unchangedProjects': reused, 'usage': client.usage,
+             'episodeRecords': len(episodes), 'totalEpisodeRecords': len(legacy) + len(episodes), 'projects': len(decisions), 'warnings': warnings}
     write_json(args.cache_dir / 'run.json', stats)
     print(json.dumps(stats, ensure_ascii=False))
     return 0
