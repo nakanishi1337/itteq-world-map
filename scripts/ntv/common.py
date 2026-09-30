@@ -34,7 +34,7 @@ def write_json(path, value):
             os.unlink(temp)
 
 
-def request(url, payload=None, key=None):
+def request(url, payload=None, key=None, timeout=30):
     headers = {'User-Agent': 'itteq-world-map/0.2'}
     if key:
         headers['Authorization'] = 'Bearer ' + key
@@ -44,7 +44,7 @@ def request(url, payload=None, key=None):
         data = json.dumps(payload, ensure_ascii=False).encode()
     for attempt in range(3):
         try:
-            with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=30) as r:
+            with urllib.request.urlopen(urllib.request.Request(url, data=data, headers=headers), timeout=timeout) as r:
                 return r.read().decode('utf-8')
         except urllib.error.HTTPError as error:
             if error.code not in (429, 500, 502, 503, 504, 529) or attempt == 2:

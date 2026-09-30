@@ -34,27 +34,6 @@ def lookup(text, start):
     return best
 
 
-def candidates(text):
-    result, pos = [], 0
-    while pos < len(text):
-        match = lookup(text, pos)
-        if not match:
-            pos += 1
-            continue
-        end, codes = match
-        place = text[pos:end]
-        before, after = text[pos-1:pos] if pos else '', text[end:end+1]
-        katakana = any(re.fullmatch('[ァ-ヺー]', c) for c in (before, after) if c)
-        latin = re.search('[A-Za-z]', place) and any(re.fullmatch('[A-Za-z]', c) for c in (before, after) if c)
-        han = re.fullmatch('[一-龯々]+', place) and any(re.fullmatch('[一-龯々]', c) for c in (before, after) if c)
-        if not katakana and not latin and not han:
-            for code in codes:
-                if code in PLACES['names']:
-                    result.append({'place': place, 'countryCode': code, 'start': pos, 'end': end, 'ambiguous': len(codes) > 1})
-        pos = end
-    return result
-
-
 def heading_places(title):
     """Only accept a complete trailing `in <place list>` and unambiguous mappings."""
     match = re.search(r'(?i)(?<![a-z])in\s+(.+)$', normalize(title))

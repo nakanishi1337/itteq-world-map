@@ -107,6 +107,7 @@ def summaries(articles):
             raise ValueError('OAまとめの本文がありません')
         result.append({'id': a['item_id'], 'title': data['title'], 'date': date,
                        'text': plain(data['body']), 'kind': 'summary',
+                       'dateBasis': 'publication_date_candidate',
                        'url': f"https://www.ntv.co.jp/q/articles/{a['content_id']}{a['item_id']}.html"})
     return result
 

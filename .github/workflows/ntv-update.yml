@@ -38,7 +38,7 @@ jobs:
         run: python3 -m unittest discover -s scripts/tests -v
       - name: Collect and resolve
         env:
-          TYPESAFE_API_KEY: ${{ secrets.TYPESAFE_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: python3 scripts/update-ntv.py
       - run: python3 scripts/update-ntv.py --validate-only
       - run: npm run lint
