@@ -1,4 +1,3 @@
-import copy
 import datetime as dt
 import sys
 import tempfile

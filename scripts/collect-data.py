@@ -196,8 +196,10 @@ def collect(wikitext: str) -> list[dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--output", type=Path, default=Path(__file__).parents[1] / "src/data/episodes.json")
+    parser.add_argument("--output", type=Path, required=True, help="検証用の出力先（src/data以外）")
     args = parser.parse_args()
+    if args.output.resolve().is_relative_to((Path(__file__).resolve().parents[1] / "src/data").resolve()):
+        parser.error("src/data 配下には出力できません")
     episodes = collect(fetch_wikitext())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(episodes, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

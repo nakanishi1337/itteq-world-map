@@ -25,11 +25,12 @@ def validate(episodes):
         seen.add(key)
 
 
-def report(decisions, gaps, warnings):
+def report(decisions, warnings):
+    pending_summaries = sum(d.get('sourceKind') == 'summary' and d['status'] == 'pending' for d in decisions)
     counts = {s: sum(d['status'] == s for d in decisions) for s in ('accepted', 'pending', 'excluded')}
     lines = ['# 日テレ放送データの更新状況', '',
              f"企画・記事: 採用 {counts['accepted']} / 保留 {counts['pending']} / 除外 {counts['excluded']}",
-             f'OAまとめの抽出保留: {len(gaps)}件（上記の保留に含みます）',
+             f'OAまとめの抽出保留: {pending_summaries}件（上記の保留に含みます）',
              f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / OpenAI確定 {sum(d['status']=='accepted' and d['method'] in ('openai', 'openai_summary') for d in decisions)}", '',
              'GitHub Actionsでは検証後に更新データをmainへ自動コミット・pushします。', '',
              '予告由来は企画の出演者一覧、OAまとめ由来はAIが抽出した国ごとの出演者を使用します。', '',
@@ -128,13 +129,12 @@ def main():
             decisions.append(d)
     reconcile(decisions)
     decisions.sort(key=lambda d: (d['date'] or '9999-12-31', d['id']))
-    gaps = [d for d in decisions if d.get('sourceKind') == 'summary' and d['status'] == 'pending']
     episodes = make_episodes(decisions, previous, overrides)
     validate(episodes)
     if hashlib.sha256(baseline.read_bytes()).hexdigest() != initial_hash:
         raise ValueError('既存データが実行中に変更されました')
     manifest = {'schemaVersion': 3, 'projects': decisions}
-    markdown = report(decisions, gaps, warnings)
+    markdown = report(decisions, warnings)
     # Prepare all data before replacing output files. A failed validation never publishes data.
     write_json(episode_path, legacy + episodes)
     write_json(dest / 'decisions.json', manifest)

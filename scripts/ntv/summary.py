@@ -66,7 +66,7 @@ def decide_summary(doc, rows, client, since, today, previous=None):
               'inputHash': fingerprint, 'method': 'openai_summary', 'model': MODEL, 'status': 'pending', 'reason': ''}
     try:
         if previous and previous.get('inputHash') == fingerprint and 'answer' in previous:
-            answer = validate(previous['answer'], candidates)
+            answer = previous['answer']
         else:
             answer = client.extract(material, PROMPT, shape, lambda v: validate(v, candidates), 'itteq_summary')
         answer = validate(answer, candidates)
