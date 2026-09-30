@@ -103,7 +103,7 @@ export default function App() {
           ) : <p className="no-broadcasts">該当する放送記録はありません。</p>}
         </section>
       )}
-      <footer><p>2007年からの<a href="https://ja.wikipedia.org/wiki/世界の果てまでイッテQ!#放送リスト" target="_blank" rel="noreferrer">Wikipedia放送リスト</a>と<a href="https://www.ntv.co.jp/q/" target="_blank" rel="noreferrer">日テレの番組記事</a>をもとに、訪問先を記録しています。出演者は企画単位の情報を含み、個人ごとの厳密な訪問履歴を示すものではありません。地名の国への対応には<a href="https://www.geonames.org/" target="_blank" rel="noreferrer">GeoNames</a>（CC BY 4.0、抽出・加工）を利用しています。</p><small>制作：<a href="https://github.com/nakanishi1337" target="_blank" rel="noreferrer">@nakanishi1337</a> ｜ 非公式の個人制作サイトです。掲載内容の完全性・正確性を保証するものではありません。</small></footer>
+      <footer><p>2007年からの<a href="https://ja.wikipedia.org/wiki/世界の果てまでイッテQ!#放送リスト" target="_blank" rel="noreferrer">Wikipedia放送リスト</a>と<a href="https://www.ntv.co.jp/q/" target="_blank" rel="noreferrer">日テレの番組記事</a>をもとに、訪問先を記録しています。出演者は企画単位の情報を含み、個人ごとの厳密な訪問履歴を示すものではありません。</p><small>制作：<a href="https://github.com/nakanishi1337" target="_blank" rel="noreferrer">@nakanishi1337</a> ｜ 非公式の個人制作サイトです。掲載内容の完全性・正確性を保証するものではありません。</small></footer>
     </main>
   );
 }

@@ -1,13 +1,15 @@
 import datetime as dt
 from html.parser import HTMLParser
 import re
-import runpy
 from urllib.parse import urljoin, urlparse
-from .common import ROOT, digest, request, read_json, write_json
-from .geography import normalize
+from .common import digest, request, read_json, write_json
+import unicodedata
 
 NTV = 'https://www.ntv.co.jp/q/articles.json'
-PREVIEWS = runpy.run_path(str(ROOT / 'scripts/collect-ntv-previews.py'))
+PREVIEW = re.compile(r'(\d{1,2})月(\d{1,2})日の[「『]イッテ[QＱ][!！]?[」』]は')
+
+def normalize(text):
+    return unicodedata.normalize('NFKC', text).strip()
 
 
 class Text(HTMLParser):
@@ -50,40 +52,50 @@ def plain(html):
     return '\n'.join(x.strip() for x in ''.join(parser.parts).splitlines() if x.strip())
 
 
-def project_key(title):
-    return re.sub(r'[\W_]+', '', normalize(title)).lower()
-
-
-cast = PREVIEWS['cast']
-
-
-def previews(articles):
-    result = PREVIEWS['collect'](articles)
-    if result['articleIssues']:
-        raise ValueError('予告記事の構造異常: ' + str(result['articleIssues']))
-    for r in result['records']:
-        r['id'] = r['articleId'] + ':' + str(r['projectIndex'])
-    return result['records']
-
-
-def summaries(articles):
-    result = []
-    for a in articles:
-        data = a.get('data', {})
-        if not any(t.get('text') == 'OAまとめ' for t in data.get('tags', [])):
-            continue
-        date = a.get('display_date', '')[:10]
+def broadcast_date(title, published):
+    match = PREVIEW.search(title)
+    try:
+        day = dt.date.fromisoformat(published[:10])
+    except (TypeError, ValueError):
+        return None
+    if not match:
+        return None
+    candidates = []
+    for year in (day.year, day.year + 1):
         try:
-            dt.date.fromisoformat(date)
+            value = dt.date(year, int(match[1]), int(match[2]))
         except ValueError:
             continue
-        if not isinstance(data.get('body'), str):
-            raise ValueError('OAまとめの本文がありません')
-        result.append({'id': a['item_id'], 'title': data['title'], 'date': date,
-                       'text': plain(data['body']), 'kind': 'summary',
-                       'dateBasis': 'publication_date_candidate',
-                       'url': f"https://www.ntv.co.jp/q/articles/{a['content_id']}{a['item_id']}.html"})
-    return result
+        if 0 <= (value - day).days <= 31:
+            candidates.append(value.isoformat())
+    return candidates[0] if len(candidates) == 1 else None
+
+
+def articles_documents(articles):
+    if not isinstance(articles, list) or not articles:
+        raise ValueError('記事一覧が空または不正です')
+    docs = []
+    for article in articles:
+        data = article['data']
+        title = data['title']
+        if PREVIEW.search(title):
+            kind = 'preview'
+            date = broadcast_date(title, article.get('publish_date') or article.get('display_date') or '')
+            if not date:
+                raise ValueError('予告の放送日を取得できません: ' + title)
+        elif any(t.get('text') == 'OAまとめ' for t in data.get('tags', [])):
+            kind = 'summary'
+            date = article['display_date'][:10]
+            dt.date.fromisoformat(date)
+        else:
+            continue
+        if not isinstance(data.get('body'), str) or not data['body'].strip():
+            raise ValueError('記事本文がありません: ' + title)
+        docs.append({'kind': kind, 'date': date, 'title': title, 'text': plain(data['body']),
+                     'url': f"https://www.ntv.co.jp/q/articles/{article['content_id']}{article['item_id']}.html"})
+    if not docs:
+        raise ValueError('予告・OAまとめがありません')
+    return docs
 
 
 def parse_schedule(html, url, expected_date=None):
@@ -98,7 +110,7 @@ def parse_schedule(html, url, expected_date=None):
     return {'kind': 'schedule', 'id': digest(url), 'date': day, 'title': '日本海テレビ番組表', 'text': text, 'url': url}
 
 
-def schedules(cache, warnings, manual):
+def schedules(cache, warnings):
     folder = cache / 'schedules'
     docs = {d['url']: d for p in sorted(folder.glob('*.json')) if (d := read_json(p))}
     urls = {}
@@ -113,9 +125,6 @@ def schedules(cache, warnings, manual):
                     urls[url] = None
     except OSError:
         warnings.append('番組表一覧の取得失敗。保存済み資料のみ利用')
-    for entry in manual:
-        if entry['url'].startswith('https://www.nkt-tv.co.jp/program/detail.php?'):
-            urls[entry['url']] = entry['date']
     for url, expected in sorted(urls.items()):
         try:
             doc = parse_schedule(request(url), url, expected)
