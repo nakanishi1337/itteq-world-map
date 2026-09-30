@@ -2,7 +2,7 @@
 from .common import ROOT, digest, read_json
 from .openai import MODEL, OpenAIUnavailable
 
-COUNTRIES = read_json(ROOT / 'data/ntv/countries.json')
+COUNTRIES = read_json(ROOT / 'data/broadcasts/countries.json')
 PROMPT = (
     '資料は日本テレビ「世界の果てまでイッテQ！」の予告、OAまとめ、番組表です。'
     '指定された放送日の企画名・出演者・訪問国を抽出してください。'

@@ -54,7 +54,7 @@ def main():
     baseline = ROOT / 'src/data/episodes.json'
     initial_hash = hashlib.sha256(baseline.read_bytes()).hexdigest()
     legacy, _ = split_episodes(read_json(baseline))
-    dest = args.output_dir or ROOT / 'data/ntv/generated'
+    dest = args.output_dir or ROOT / 'data/broadcasts/generated'
     episode_path = (dest / 'episodes.json') if args.output_dir else baseline
     if args.validate_only:
         _, additions = split_episodes(read_json(episode_path))

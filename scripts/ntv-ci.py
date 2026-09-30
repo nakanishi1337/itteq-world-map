@@ -5,7 +5,7 @@ import os
 import subprocess
 import sys
 
-DATA_PATHS = ('src/data/episodes.json', 'data/ntv/generated/decisions.json', 'data/ntv/generated/report.md')
+DATA_PATHS = ('src/data/episodes.json', 'data/broadcasts/generated/decisions.json', 'data/broadcasts/generated/report.md')
 
 
 def gh(*args):

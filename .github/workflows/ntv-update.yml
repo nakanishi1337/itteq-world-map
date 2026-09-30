@@ -47,7 +47,7 @@ jobs:
           retention-days: 90
       - name: Run summary
         run: |
-          cat data/ntv/generated/report.md >> "$GITHUB_STEP_SUMMARY"
+          cat data/broadcasts/generated/report.md >> "$GITHUB_STEP_SUMMARY"
           echo '' >> "$GITHUB_STEP_SUMMARY"
           cat .cache/ntv/run.json >> "$GITHUB_STEP_SUMMARY"
       - name: Commit and push generated data
