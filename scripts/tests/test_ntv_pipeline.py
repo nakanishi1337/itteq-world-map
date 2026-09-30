@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ntv.common import ROOT, LEGACY_COUNT, split_episodes, restore_pending_episodes, read_json, write_json
+from ntv.common import ROOT, LEGACY_COUNT, split_episodes, read_json, write_json
 from ntv.geography import heading_places, CITIES
 from ntv.openai import OpenAI, OpenAIUnavailable, output, validate
 from ntv.pipeline import decide, make_episodes
@@ -65,15 +65,6 @@ class SharedDataTests(unittest.TestCase):
         changed[0]['project'] += '変更'
         with self.assertRaises(ValueError): split_episodes(changed)
         with self.assertRaises(ValueError): split_episodes(data[1:])
-
-    def test_pending_pr_migration_and_conflict(self):
-        legacy, _ = split_episodes(read_json(ROOT / 'src/data/episodes.json'))
-        first = {'projectId': 'test:1', 'countryCode': 'FI'}
-        second = dict(first, countryCode='SE')
-        self.assertEqual(restore_pending_episodes(legacy, legacy + [first], legacy), legacy + [first])
-        self.assertEqual(restore_pending_episodes(legacy + [first], legacy + [first], legacy), legacy + [first])
-        with self.assertRaises(ValueError):
-            restore_pending_episodes(legacy + [second], legacy + [first], legacy)
 
 
 class SourceTests(unittest.TestCase):

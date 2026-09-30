@@ -67,8 +67,10 @@ python3 -m unittest discover -s scripts/tests -v
 
 ## GitHub Actions
 
-日曜23:00 JSTと手動実行で、`automation/ntv-data` ブランチの確認用PRを作成・更新します。自動マージはしません。Secretsの `OPENAI_API_KEY` と、Settings → Actions → GeneralのPR作成許可を使います。
+日曜23:00 JSTと手動実行で、最新のデフォルトブランチ（main）を取得して更新し、検証後にmainへ直接コミット・pushします。PRの作成・マージ操作は不要です。APIキーはSecretsの `OPENAI_API_KEY`、pushは標準の `GITHUB_TOKEN` を使います。
 
-未マージのデータPRと前回成功時の資料・APIキャッシュを復元します。旧形式の別ファイルにある追加データも共通ファイルへ移行します。mainとデータPRの双方で同じ生成ファイルが変わった場合は停止します。処理済み判定はPRに保存するため、90日保持のキャッシュartifactが失効しても再照会を防げます。
+前回成功時の資料・APIキャッシュを復元します。処理済み判定はmainへ保存するため、90日保持のキャッシュartifactが失効しても再照会を防げます。既存のWikipedia由来データは保持し、追加分だけを更新します。
 
-テスト・データ検証・lint・buildが通った後にPRを作成します。通常は `GITHUB_TOKEN` を使います。PRの別ワークフローも起動する場合は限定権限の `NTV_PR_TOKEN` を設定します。ActionsのSummaryと生成レポートで、保留理由・資料URL・API回数を確認できます。
+テスト・データ検証・lint・buildが全て通った場合だけ、訪問データと判定JSON・レポートの3ファイルをコミットします。差分がなければコミットしません。処理中にmainが更新された場合は停止し、次回の実行で最新のコードとデータを使います。強制pushは行いません。
+
+`GITHUB_TOKEN` によるpushは別のGitHub Actionsを起動しないため、push前の本ワークフロー内で必要な検証を完了します。公開サイトはCloudflareのGit連携で更新します。ActionsのSummaryと生成レポートで、保留理由・資料URL・API回数を確認できます。

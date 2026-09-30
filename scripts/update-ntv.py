@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Collect official articles, resolve destinations, and prepare a reviewable data snapshot."""
+"""Collect official articles, resolve destinations, and append visits to the shared episode dataset."""
 import argparse
 import datetime as dt
 import hashlib
@@ -29,6 +29,7 @@ def report(decisions, gaps, warnings):
     lines = ['# 日テレ放送データの更新候補', '',
              f"企画: 採用 {counts['accepted']} / 保留 {counts['pending']} / 除外 {counts['excluded']}",
              f"見出し確定 {sum(d['status']=='accepted' and d['method']=='heading' for d in decisions)} / OpenAI確定 {sum(d['status']=='accepted' and d['method']=='openai' for d in decisions)}", '',
+             'GitHub Actionsでは検証後に更新データをmainへ自動コミット・pushします。', '',
              '出演者は日テレの企画欄を使用し、採用した各国に全員を紐付けます。', '',
              '| 放送日 | 企画 | 判定 | 国 | 根拠・保留理由 |', '|---|---|---|---|---|']
     for d in decisions:
@@ -126,7 +127,7 @@ def main():
         raise ValueError('既存データが実行中に変更されました')
     manifest = {'schemaVersion': 2, 'projects': decisions, 'missingPreviews': gaps}
     markdown = report(decisions, gaps, warnings)
-    # Prepare all data before replacing output files. A failed CI never publishes a PR.
+    # Prepare all data before replacing output files. A failed validation never publishes data.
     write_json(episode_path, legacy + episodes)
     write_json(dest / 'decisions.json', manifest)
     dest.mkdir(parents=True, exist_ok=True)

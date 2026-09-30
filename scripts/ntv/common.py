@@ -26,16 +26,6 @@ def split_episodes(episodes):
     return episodes[:LEGACY_COUNT], additions
 
 
-def restore_pending_episodes(current, pending, original):
-    """Three-way comparison of appended data, preserving the original Wikipedia records."""
-    legacy, current_additions = split_episodes(current)
-    _, pending_additions = split_episodes(pending)
-    _, original_additions = split_episodes(original)
-    if current_additions != original_additions and pending_additions != original_additions and current_additions != pending_additions:
-        raise ValueError('Visit data changed on both main and the pending PR')
-    return legacy + (current_additions if pending_additions == original_additions else pending_additions)
-
-
 def read_json(path, default=None):
     return json.loads(path.read_text()) if path.exists() else default
 
