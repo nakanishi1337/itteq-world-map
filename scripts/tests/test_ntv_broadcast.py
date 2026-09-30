@@ -45,6 +45,25 @@ class BroadcastTests(unittest.TestCase):
         self.assertTrue(all(e['project']=='改題' for e in replacement))
         self.assertEqual(make_episodes([],episodes),episodes)
 
+    def test_recaps_remain_in_history_without_adding_visits(self):
+        recap = {'project':'秋の爆笑アワード','performers':[],'countries':[],'sourceUrls':[DOC['url']]}
+        answer = validate_answer({'projects':[recap, *ANSWER['projects']]}, [DOC])
+        client = Mock(); client.extract.return_value = answer
+        decision = decide(DOC['date'], [DOC], client)
+        self.assertIn(recap, decision['projects'])
+        episodes = make_episodes([decision], [])
+        self.assertEqual(len(episodes), 2)
+        self.assertTrue(all(e['project'] == '企画' for e in episodes))
+        self.assertIs(decide(DOC['date'], [DOC], client, decision), decision)
+        client.extract.side_effect = OpenAIUnavailable('openai_http_429')
+        failed = decide(DOC['date'], [dict(DOC,text='変更')], client, decision)
+        self.assertEqual(failed['projects'], decision['projects'])
+        self.assertEqual(make_episodes([failed], episodes), episodes)
+        client.extract.side_effect = None; client.extract.return_value = {'projects':[recap]}
+        recap_only = decide(DOC['date'], [dict(DOC,text='総集編')], client)
+        self.assertEqual(make_episodes([recap_only], episodes), [])
+        self.assertEqual(recap_only['projects'], [recap])
+
     def test_new_document_refresh_and_missing_document_retained(self):
         client=Mock();client.extract.return_value=ANSWER
         first=decide(DOC['date'],[DOC],client)
@@ -55,7 +74,7 @@ class BroadcastTests(unittest.TestCase):
 
     def test_json_validation(self):
         self.assertEqual(validate_answer(ANSWER,[DOC]),ANSWER)
-        for key,value in [('countries',['ZZ']),('performers',[]),('sourceUrls',['https://bad.test'])]:
+        for key,value in [('countries',['ZZ']),('performers','A'),('sourceUrls',['https://bad.test'])]:
             bad=copy.deepcopy(ANSWER);bad['projects'][0][key]=value
             with self.assertRaises(OpenAIUnavailable):validate_answer(bad,[DOC])
         with self.assertRaises(OpenAIUnavailable):output({'status':'incomplete'},lambda v:v)

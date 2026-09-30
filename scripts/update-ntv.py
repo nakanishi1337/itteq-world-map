@@ -18,7 +18,7 @@ def validate(episodes):
     for e in episodes:
         dt.date.fromisoformat(e['date'])
         key = (e['projectId'], e['countryCode'])
-        if e['countryCode'] not in COUNTRIES or key in seen or not e['performers'] or not e['project'] or not e['source'].startswith(('https://www.ntv.co.jp/q/articles/', 'https://www.nkt-tv.co.jp/program/')):
+        if e['countryCode'] not in COUNTRIES or key in seen or not isinstance(e['performers'], list) or not e['project'] or not e['source'].startswith(('https://www.ntv.co.jp/q/articles/', 'https://www.nkt-tv.co.jp/program/')):
             raise ValueError('Invalid or duplicate NTV episode')
         seen.add(key)
 
@@ -34,7 +34,7 @@ def report(decisions, warnings):
             title = p['project'].replace('|', '／').replace('\n', ' ') if p else '—'
             if p:
                 title = f"[{title}]({p['sourceUrls'][0]})"
-            countries = ', '.join(p['countries']) if p else '—'
+            countries = (', '.join(p['countries']) or '—') if p else '—'
             lines.append(f"| {d['date']} | {d['status']} | {title} | {countries} | {d['reason']} |")
     if warnings:
         lines += ['## 取得上の注意', ''] + ['- ' + w for w in sorted(set(warnings))]
