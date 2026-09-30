@@ -1,11 +1,10 @@
 import { useMemo, useState } from "react";
 import WorldMapView, { type VisitedCountry } from "./components/WorldMapView";
 import episodesData from "./data/episodes.json";
-import ntvEpisodesData from "./data/episodes-ntv.json";
 
 type Episode = { date: string | null; countryCode: string; countryName: string; project: string; performers: string[]; source: string; sources?: string[] };
 type Broadcast = Episode & { countryNames: string[] };
-const episodes = [...episodesData, ...ntvEpisodesData] as Episode[];
+const episodes = episodesData as Episode[];
 
 function aggregateCountries(items: Episode[]): VisitedCountry[] {
   const countries = new Map<string, VisitedCountry>();

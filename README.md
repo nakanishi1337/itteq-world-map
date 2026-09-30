@@ -2,7 +2,7 @@
 
 「世界の果てまでイッテQ!」で訪れたことのある国を、世界地図上で色付き表示する静的Webサイトです。
 
-現在はMVPとして、Wikipediaの放送リストから取得した訪問国を表示しています。データは確認できた範囲で段階的に補正・追加する方針です。
+Wikipediaの放送リストから取得した訪問国に、公式予告・番組表・OAまとめから取得した新しい訪問データを追加して表示します。
 
 ## 公開サイト
 
@@ -26,7 +26,7 @@ npm run dev
 Wikipediaの「放送リスト」からデータを再生成する場合は次を実行します。
 
 ```bash
-python3 scripts/collect-data.py
+python3 scripts/collect-data.py --output /tmp/wikipedia-episodes.json
 ```
 
 取得元の記載内容や表記揺れを含むため、実際の訪問履歴の完全性・正確性を保証するものではありません。
@@ -93,7 +93,8 @@ python3 -m unittest discover -s scripts/tests -v
 企画見出しの地名で国を取得できない場合は、予告本文・同日の番組表・OAまとめを
 OpenAI APIへ送り、国コードのJSONを取得します。都市・地域表記にも対応します。
 
-既存データは固定し、追加分は `src/data/episodes-ntv.json` に保存します。
+追加分も `src/data/episodes.json` に追記し、アプリと週次更新が同じファイルを使います。
+Wikipedia由来の元の1,376件は内容と順序を保持します。
 処理済みの資料は再照会せず、変更時には企画の国リストを置き換えます。
 API失敗時は既存の記録を保持し、次回に再試行します。
 日曜23時JSTのGitHub Actionsで確認用PRを作成・更新します。

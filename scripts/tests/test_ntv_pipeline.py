@@ -10,7 +10,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ntv.common import ROOT, read_json, write_json
+from ntv.common import ROOT, LEGACY_COUNT, split_episodes, restore_pending_episodes, read_json, write_json
 from ntv.geography import heading_places, CITIES
 from ntv.openai import OpenAI, OpenAIUnavailable, output, validate
 from ntv.pipeline import decide, make_episodes
@@ -53,6 +53,27 @@ class GeographyTests(unittest.TestCase):
         self.assertEqual([p['countryCode'] for p in heading_places('企画 in フランス・オーストリア')], ['FR','AT'])
         for s in ['企画 in 未知島', '企画 in タイ・未知島', '企画 in タイで大冒険', '企画 in タイ・']:
             self.assertEqual(heading_places(s), [])
+
+
+class SharedDataTests(unittest.TestCase):
+    def test_legacy_preserved_and_changes_rejected(self):
+        data = read_json(ROOT / 'src/data/episodes.json')
+        legacy, additions = split_episodes(data)
+        self.assertEqual(len(legacy), LEGACY_COUNT)
+        self.assertTrue(all(e['projectId'] for e in additions))
+        changed = copy.deepcopy(data)
+        changed[0]['project'] += '変更'
+        with self.assertRaises(ValueError): split_episodes(changed)
+        with self.assertRaises(ValueError): split_episodes(data[1:])
+
+    def test_pending_pr_migration_and_conflict(self):
+        legacy, _ = split_episodes(read_json(ROOT / 'src/data/episodes.json'))
+        first = {'projectId': 'test:1', 'countryCode': 'FI'}
+        second = dict(first, countryCode='SE')
+        self.assertEqual(restore_pending_episodes(legacy, legacy + [first], legacy), legacy + [first])
+        self.assertEqual(restore_pending_episodes(legacy + [first], legacy + [first], legacy), legacy + [first])
+        with self.assertRaises(ValueError):
+            restore_pending_episodes(legacy + [second], legacy + [first], legacy)
 
 
 class SourceTests(unittest.TestCase):
@@ -222,7 +243,7 @@ class CommandTests(unittest.TestCase):
                 api.return_value = ['SE']
                 updater.main()
                 self.assertEqual(api.call_count, 2)
-                self.assertEqual([e['countryCode'] for e in read_json(folder / 'out/episodes-ntv.json')], ['SE'])
+                self.assertEqual([e['countryCode'] for e in read_json(folder / 'out/episodes.json')[LEGACY_COUNT:]], ['SE'])
                 updater.main()
                 self.assertEqual(api.call_count, 2)
 
@@ -246,16 +267,16 @@ class CommandTests(unittest.TestCase):
             write_json(source, [original])
             cmd=[sys.executable,str(ROOT/'scripts/update-ntv.py'),'--input',str(source),'--offline','--since','2026-01-01','--today','2026-01-17','--output-dir',str(output_dir),'--cache-dir',str(folder/'cache')]
             subprocess.run(cmd,check=True,capture_output=True)
-            self.assertEqual(read_json(output_dir/'episodes-ntv.json'), [])
+            self.assertEqual(read_json(output_dir/'episodes.json'), read_json(ROOT/'src/data/episodes.json')[:LEGACY_COUNT])
             cmd[cmd.index('--today')+1]='2026-01-19'
             subprocess.run(cmd,check=True,capture_output=True)
-            first=read_json(output_dir/'episodes-ntv.json')
-            self.assertEqual(len(first),3)
+            first=read_json(output_dir/'episodes.json')
+            self.assertEqual(len(first),LEGACY_COUNT + 3)
             original['data']['body']=original['data']['body'].replace('ロッチ中岡のQtube','中岡の変更企画')
             write_json(source,[original])
             for _ in range(2):
                 subprocess.run(cmd,check=True,capture_output=True)
-                self.assertEqual(read_json(output_dir/'episodes-ntv.json'),first)
+                self.assertEqual(read_json(output_dir/'episodes.json'),first)
                 self.assertTrue(all(d['reason']=='article_structure_changed' for d in read_json(output_dir/'decisions.json')['projects']))
 
 

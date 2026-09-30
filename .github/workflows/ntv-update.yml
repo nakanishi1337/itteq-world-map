@@ -64,5 +64,5 @@ jobs:
           title: '日テレ放送データの週次更新'
           body-path: data/ntv/generated/report.md
           add-paths: |
-            src/data/episodes-ntv.json
+            src/data/episodes.json
             data/ntv/generated/
