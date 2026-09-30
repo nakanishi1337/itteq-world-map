@@ -7,10 +7,10 @@ import tempfile
 import unittest
 from unittest.mock import Mock, patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from ntv.common import ROOT, LEGACY_COUNT, read_json, split_episodes
-from ntv.sources import articles_documents, parse_schedule
-from ntv.pipeline import decide, make_episodes, validate_answer
-from ntv.openai import OpenAI, OpenAIUnavailable, output
+from broadcasts.common import ROOT, LEGACY_COUNT, read_json, split_episodes
+from broadcasts.sources import articles_documents, parse_schedule
+from broadcasts.pipeline import decide, make_episodes, validate_answer
+from broadcasts.openai import OpenAI, OpenAIUnavailable, output
 
 DOC={'date':'2026-09-27','title':'企画','text':'本文','kind':'summary','url':'https://www.ntv.co.jp/q/articles/example.html'}
 ANSWER={'projects':[{'project':'企画','performers':['A','B'],'countries':['FR','GB'],'sourceUrls':[DOC['url']]}]}
@@ -64,14 +64,14 @@ class BroadcastTests(unittest.TestCase):
     def test_cache_and_failed_requests_not_cached(self):
         with tempfile.TemporaryDirectory() as temp:
             client=OpenAI(Path(temp));response={'status':'completed','output':[{'content':[{'type':'output_text','text':json.dumps(ANSWER)}]}],'usage':{'input_tokens':100,'output_tokens':20}}
-            with patch.dict('os.environ',{'OPENAI_API_KEY':'test'}),patch('ntv.openai.request',return_value=json.dumps(response)) as request:
+            with patch.dict('os.environ',{'OPENAI_API_KEY':'test'}),patch('broadcasts.openai.request',return_value=json.dumps(response)) as request:
                 first=decide(DOC['date'],[DOC],client)
                 client.offline=True
                 self.assertEqual(decide(DOC['date'],[DOC],client),first)
                 self.assertEqual(request.call_count,1)
                 self.assertEqual(client.usage['input_tokens'],100)
             client.offline=False
-            with patch.dict('os.environ',{'OPENAI_API_KEY':'test'}),patch('ntv.openai.request',side_effect=OSError('offline')) as request:
+            with patch.dict('os.environ',{'OPENAI_API_KEY':'test'}),patch('broadcasts.openai.request',side_effect=OSError('offline')) as request:
                 for _ in range(2):self.assertEqual(decide(DOC['date'],[dict(DOC,text='changed')],client)['status'],'pending')
                 self.assertEqual(request.call_count,2)
 
@@ -96,7 +96,7 @@ class BroadcastTests(unittest.TestCase):
             with patch('sys.argv',args),patch('builtins.print'):
                 updater.main()
                 self.assertEqual(read_json(out/'episodes.json'),original)
-                with patch('ntv.openai.OpenAI.extract',return_value=ANSWER) as api:
+                with patch('broadcasts.openai.OpenAI.extract',return_value=ANSWER) as api:
                     updater.main();updater.main();self.assertEqual(api.call_count,1)
                 result=read_json(out/'episodes.json')
                 self.assertEqual(result[:LEGACY_COUNT],original[:LEGACY_COUNT])

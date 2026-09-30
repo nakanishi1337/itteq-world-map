@@ -7,10 +7,10 @@ import json
 from pathlib import Path
 import sys
 from zoneinfo import ZoneInfo
-from ntv.common import ROOT, split_episodes, read_json, write_json, request
-from ntv.openai import OpenAI
-from ntv.pipeline import COUNTRIES, decide, make_episodes
-from ntv.sources import NTV, articles_documents, schedules
+from broadcasts.common import ROOT, split_episodes, read_json, write_json, request
+from broadcasts.openai import OpenAI
+from broadcasts.pipeline import COUNTRIES, decide, make_episodes
+from broadcasts.sources import NTV, articles_documents, schedules
 
 
 def validate(episodes):
