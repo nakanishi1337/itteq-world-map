@@ -58,6 +58,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.NTV_PR_TOKEN || github.token }}
+          base: ${{ github.event.repository.default_branch }}
           branch: automation/ntv-data
           commit-message: 'data: update NTV broadcast records'
           title: '日テレ放送データの週次更新'
