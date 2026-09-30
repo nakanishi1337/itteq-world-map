@@ -95,7 +95,6 @@ export default function App() {
                     <strong>{episode.project}</strong>
                     {!selectedCountry && <p>訪問国：{episode.countryNames.join("、")}</p>}
                     {episode.performers.length > 0 && <p>出演：{episode.performers.join("、")}</p>}
-                    <p>{(episode.sources ?? [episode.source]).map((url, i) => <a key={url} href={url} target="_blank" rel="noreferrer">{i > 0 ? " ／ " : ""}出典{i + 1}</a>)}</p>
                   </div>
                 </li>
               ))}
