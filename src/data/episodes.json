@@ -15214,5 +15214,36 @@
     "sources": [
       "https://www.ntv.co.jp/q/articles/304cl5wcg18smpe47y6.html"
     ]
+  },
+  {
+    "projectId": "broadcast:2026-10-11:4f39eae06f03d8b2",
+    "date": "2026-10-11",
+    "project": "エンターテイナー出川",
+    "performers": [
+      "出川哲朗",
+      "箭内夢菜"
+    ],
+    "countryCode": "DE",
+    "countryName": "ドイツ",
+    "source": "https://www.ntv.co.jp/q/articles/304k3h7p1fe2ztgzqur.html",
+    "sources": [
+      "https://www.ntv.co.jp/q/articles/304k3h7p1fe2ztgzqur.html",
+      "https://www.ntv.co.jp/q/articles/304mhz979oep7fepsd5.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-10-11:ebeefec8df883ffc",
+    "date": "2026-10-11",
+    "project": "ロッチ中岡のQtube",
+    "performers": [
+      "中岡創一"
+    ],
+    "countryCode": "NZ",
+    "countryName": "ニュージーランド",
+    "source": "https://www.ntv.co.jp/q/articles/3040iqmgifqw38j399v.html",
+    "sources": [
+      "https://www.ntv.co.jp/q/articles/3040iqmgifqw38j399v.html",
+      "https://www.ntv.co.jp/q/articles/304mhz979oep7fepsd5.html"
+    ]
   }
 ]
