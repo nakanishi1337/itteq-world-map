@@ -15245,5 +15245,38 @@
       "https://www.ntv.co.jp/q/articles/3040iqmgifqw38j399v.html",
       "https://www.ntv.co.jp/q/articles/304mhz979oep7fepsd5.html"
     ]
+  },
+  {
+    "projectId": "broadcast:2026-10-18:a5096ec9c011a4ab",
+    "date": "2026-10-18",
+    "project": "イッテQ！お遍路ツアー in 高知",
+    "performers": [
+      "いとうあさこ",
+      "オカリナ",
+      "大島美幸",
+      "椿鬼奴"
+    ],
+    "countryCode": "JP",
+    "countryName": "日本",
+    "source": "https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html",
+    "sources": [
+      "https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html",
+      "https://www.ntv.co.jp/q/articles/304labux2eh22x7n5q4.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-10-18:fb12e83533e0a454",
+    "date": "2026-10-18",
+    "project": "世界の果てまでイッタっきり in 台湾",
+    "performers": [
+      "みやぞん"
+    ],
+    "countryCode": "TW",
+    "countryName": "台湾",
+    "source": "https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html",
+    "sources": [
+      "https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html",
+      "https://www.ntv.co.jp/q/articles/304uc8rxuz0jw2cisct.html"
+    ]
   }
 ]

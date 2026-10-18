@@ -1,6 +1,6 @@
 # 保存済みの放送履歴（今回のAI処理一覧ではありません）
 
-放送日: 処理済み 9 / 保留 0
+放送日: 処理済み 10 / 保留 0
 
 放送日ごとの予告・OAまとめ・番組表をAIで統合します。検証後にmainへ自動pushします。
 
@@ -19,3 +19,5 @@
 | 2026-09-27 | accepted | [ガンバレルーヤのど根性ツアー in メキシコ](https://www.ntv.co.jp/q/articles/304cl5wcg18smpe47y6.html) | MX | 企画を取得 |
 | 2026-10-11 | accepted | [エンターテイナー出川](https://www.ntv.co.jp/q/articles/304k3h7p1fe2ztgzqur.html) | DE | 企画を取得 |
 | 2026-10-11 | accepted | [ロッチ中岡のQtube](https://www.ntv.co.jp/q/articles/3040iqmgifqw38j399v.html) | NZ | 企画を取得 |
+| 2026-10-18 | accepted | [イッテQ！お遍路ツアー in 高知](https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html) | JP | 企画を取得 |
+| 2026-10-18 | accepted | [世界の果てまでイッタっきり in 台湾](https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html) | TW | 企画を取得 |
