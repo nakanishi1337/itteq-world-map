@@ -1,6 +1,6 @@
 # 保存済みの放送履歴（今回のAI処理一覧ではありません）
 
-放送日: 処理済み 10 / 保留 0
+放送日: 処理済み 11 / 保留 0
 
 放送日ごとの予告・OAまとめ・番組表をAIで統合します。検証後にmainへ自動pushします。
 
@@ -21,3 +21,4 @@
 | 2026-10-11 | accepted | [ロッチ中岡のQtube](https://www.ntv.co.jp/q/articles/3040iqmgifqw38j399v.html) | NZ | 企画を取得 |
 | 2026-10-18 | accepted | [イッテQ！お遍路ツアー in 高知](https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html) | JP | 企画を取得 |
 | 2026-10-18 | accepted | [世界の果てまでイッタっきり in 台湾](https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html) | TW | 企画を取得 |
+| 2026-10-25 | accepted | [20年目企画！世界遺産駅伝SP](https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25) | BA, GR, IT | 企画を取得 |

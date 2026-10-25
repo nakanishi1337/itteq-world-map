@@ -15278,5 +15278,65 @@
       "https://www.ntv.co.jp/q/articles/3042r1von5a30l92jjp.html",
       "https://www.ntv.co.jp/q/articles/304uc8rxuz0jw2cisct.html"
     ]
+  },
+  {
+    "projectId": "broadcast:2026-10-25:32819b5f7c137afa",
+    "date": "2026-10-25",
+    "project": "20年目企画！世界遺産駅伝SP",
+    "performers": [
+      "オカリナ",
+      "ガンバレルーヤ",
+      "中岡創一",
+      "川村エミコ",
+      "椿鬼奴"
+    ],
+    "countryCode": "BA",
+    "countryName": "ボスニア・ヘルツェゴビナ",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+      "https://www.ntv.co.jp/q/articles/304m4t143en3oulk70j.html",
+      "https://www.ntv.co.jp/q/articles/304tx16gafrgajtbxwq.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-10-25:32819b5f7c137afa",
+    "date": "2026-10-25",
+    "project": "20年目企画！世界遺産駅伝SP",
+    "performers": [
+      "オカリナ",
+      "ガンバレルーヤ",
+      "中岡創一",
+      "川村エミコ",
+      "椿鬼奴"
+    ],
+    "countryCode": "GR",
+    "countryName": "ギリシャ",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+      "https://www.ntv.co.jp/q/articles/304m4t143en3oulk70j.html",
+      "https://www.ntv.co.jp/q/articles/304tx16gafrgajtbxwq.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-10-25:32819b5f7c137afa",
+    "date": "2026-10-25",
+    "project": "20年目企画！世界遺産駅伝SP",
+    "performers": [
+      "オカリナ",
+      "ガンバレルーヤ",
+      "中岡創一",
+      "川村エミコ",
+      "椿鬼奴"
+    ],
+    "countryCode": "IT",
+    "countryName": "イタリア",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261025&no=25",
+      "https://www.ntv.co.jp/q/articles/304m4t143en3oulk70j.html",
+      "https://www.ntv.co.jp/q/articles/304tx16gafrgajtbxwq.html"
+    ]
   }
 ]
