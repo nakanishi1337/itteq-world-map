@@ -15338,5 +15338,37 @@
       "https://www.ntv.co.jp/q/articles/304m4t143en3oulk70j.html",
       "https://www.ntv.co.jp/q/articles/304tx16gafrgajtbxwq.html"
     ]
+  },
+  {
+    "projectId": "broadcast:2026-11-01:058359086996a221",
+    "date": "2026-11-01",
+    "project": "みやぞんマグロプロジェクト2026",
+    "performers": [
+      "みやぞん"
+    ],
+    "countryCode": "CA",
+    "countryName": "カナダ",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261101&no=22",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261101&no=22",
+      "https://www.ntv.co.jp/q/articles/304fqtqqfp034me59ze.html",
+      "https://www.ntv.co.jp/q/articles/304retm2xgowohxp3l3.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-11-01:dcbad3bcac6cc711",
+    "date": "2026-11-01",
+    "project": "ガンバレルーヤのど根性ツアー in イタリア",
+    "performers": [
+      "ガンバレルーヤ"
+    ],
+    "countryCode": "IT",
+    "countryName": "イタリア",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261101&no=22",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261101&no=22",
+      "https://www.ntv.co.jp/q/articles/304fqtqqfp034me59ze.html",
+      "https://www.ntv.co.jp/q/articles/304uni3mh5yeh1kfz9g.html"
+    ]
   }
 ]
