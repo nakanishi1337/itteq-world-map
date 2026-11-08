@@ -15370,5 +15370,39 @@
       "https://www.ntv.co.jp/q/articles/304fqtqqfp034me59ze.html",
       "https://www.ntv.co.jp/q/articles/304uni3mh5yeh1kfz9g.html"
     ]
+  },
+  {
+    "projectId": "broadcast:2026-11-08:6c36d65a9b071fdd",
+    "date": "2026-11-08",
+    "project": "温泉同好会 in ベトナム",
+    "performers": [
+      "オカリナ",
+      "大島美幸",
+      "椿鬼奴"
+    ],
+    "countryCode": "VN",
+    "countryName": "ベトナム",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261108&no=22",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261108&no=22",
+      "https://www.ntv.co.jp/q/articles/304bpseccpuuw5y0kch.html",
+      "https://www.ntv.co.jp/q/articles/304w1i5omsyj72485vp.html"
+    ]
+  },
+  {
+    "projectId": "broadcast:2026-11-08:e973deb9c99aaa4d",
+    "date": "2026-11-08",
+    "project": "いとうあさこのミステリーツアー in インド",
+    "performers": [
+      "いとうあさこ"
+    ],
+    "countryCode": "IN",
+    "countryName": "インド",
+    "source": "https://www.nkt-tv.co.jp/program/detail.php?date=261108&no=22",
+    "sources": [
+      "https://www.nkt-tv.co.jp/program/detail.php?date=261108&no=22",
+      "https://www.ntv.co.jp/q/articles/304bpseccpuuw5y0kch.html",
+      "https://www.ntv.co.jp/q/articles/304ngutp0rg3fu161nb.html"
+    ]
   }
 ]
